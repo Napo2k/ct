@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from cycle.config import CycleConfig
 from cycle.decision import DecisionValidationError, hold_decision, validate_decision
+from cycle.llm import LLMError
 from cycle.prefilter import has_warm_signal
 from cycle.regime import classify_regime, evaluate_entry_checklist
+from cycle.runner import _evaluate_and_log
 from cycle.veto import check_vetoes
 
 
@@ -123,3 +128,29 @@ def test_hold_decision_schema():
     hold = hold_decision("EURUSD", "2026-06-05T12:00:00Z", "No signal")
     validated = validate_decision(hold, cycle_id="2026-06-05T12:00:00Z")
     assert validated["action"] == "HOLD"
+
+
+def test_evaluate_and_log_appends_llm_error_without_keyerror():
+    """Regression: result['errors'] must exist before append on LLM failure."""
+    cfg = CycleConfig(
+        prefilter={"enabled": True},
+        playbook_path="playbook/algo_trading_skill.md",
+    )
+    cycle_id = "2026-06-05T14:30:00Z"
+    market_state = {"pairs": ["EURUSD"], "ticks": {}, "indicators": {}}
+    summary = {"errors": []}
+    mt5 = MagicMock()
+
+    async def run() -> dict:
+        with (
+            patch("cycle.runner.filter_pairs", return_value=(["EURUSD"], {"EURUSD": ["warm"]})),
+            patch("cycle.runner.load_playbook", return_value="playbook"),
+            patch("cycle.runner.invoke_claude", side_effect=LLMError("API unavailable")),
+            patch("cycle.runner.execute_decision", new_callable=AsyncMock, return_value={"simulated": True}),
+            patch("cycle.runner.write_cycle_log", return_value=Path("logs/test.json")),
+        ):
+            return await _evaluate_and_log(cfg, cycle_id, market_state, mt5, summary)
+
+    result = asyncio.run(run())
+    assert result["errors"] == ["API unavailable"]
+    assert result["decision"]["action"] == "HOLD"

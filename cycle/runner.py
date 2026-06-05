@@ -77,7 +77,7 @@ async def _evaluate_and_log(
     mt5: MCPClient,
     summary: dict[str, Any],
 ) -> dict[str, Any]:
-    result: dict[str, Any] = {}
+    result: dict[str, Any] = {"errors": []}
 
     veto = check_vetoes(
         datetime.now(timezone.utc),
