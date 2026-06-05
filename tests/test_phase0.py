@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cycle.config import CycleConfig
-from cycle.decision import DecisionValidationError, hold_decision, validate_decision
+from cycle.decision import DecisionValidationError, hold_decision, suspend_decision, validate_decision
+from cycle.executor import execute_decision
 from cycle.llm import LLMError
 from cycle.prefilter import has_warm_signal
 from cycle.regime import classify_regime, evaluate_entry_checklist
@@ -128,6 +129,29 @@ def test_hold_decision_schema():
     hold = hold_decision("EURUSD", "2026-06-05T12:00:00Z", "No signal")
     validated = validate_decision(hold, cycle_id="2026-06-05T12:00:00Z")
     assert validated["action"] == "HOLD"
+
+
+def test_suspend_decision_schema():
+    suspend = suspend_decision("2026-06-05T12:00:00Z", "Veto: daily drawdown limit reached")
+    validated = validate_decision(suspend, cycle_id="2026-06-05T12:00:00Z")
+    assert validated["action"] == "SUSPEND"
+
+
+def test_execute_decision_accepts_suspend_helper():
+    """Regression: system SUSPEND must pass validation inside execute_decision."""
+    suspend = suspend_decision("2026-06-05T12:00:00Z", "MT5 MCP unavailable")
+
+    async def run() -> dict:
+        return await execute_decision(
+            suspend,
+            mt5=None,
+            execution_mode=False,
+            cycle_id="2026-06-05T12:00:00Z",
+        )
+
+    result = asyncio.run(run())
+    assert result["action"] == "SUSPEND"
+    assert result["simulated"] is True
 
 
 def test_evaluate_and_log_appends_llm_error_without_keyerror():

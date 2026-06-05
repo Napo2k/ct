@@ -18,6 +18,9 @@ REASONING_SECTIONS = [
     "DECISION",
 ]
 
+# HOLD/SUSPEND are system or no-trade outcomes — short reasoning is allowed.
+RELAXED_REASONING_ACTIONS = {"HOLD", "SUSPEND"}
+
 
 class DecisionValidationError(Exception):
     pass
@@ -98,10 +101,12 @@ def validate_decision(decision: dict[str, Any], *, cycle_id: str) -> dict[str, A
         take_profit = float(take_profit)
 
     reasoning = str(decision["reasoning"]).strip()
-    if action != "HOLD" and len(reasoning) < 50:
-        raise DecisionValidationError("reasoning too short for non-HOLD decision")
+    if action not in RELAXED_REASONING_ACTIONS and len(reasoning) < 50:
+        raise DecisionValidationError(
+            "reasoning too short — ENTER/EXIT/MODIFY require ≥50 characters"
+        )
 
-    if action != "HOLD":
+    if action not in RELAXED_REASONING_ACTIONS:
         upper_reasoning = reasoning.upper()
         for section in REASONING_SECTIONS:
             if section not in upper_reasoning:
