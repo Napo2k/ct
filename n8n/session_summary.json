@@ -1,0 +1,75 @@
+{
+  "name": "ClaudeTrader Session Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 19 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "cron-close",
+      "name": "Daily 21:15 CET",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "21:15 CET ≈ 19:15 UTC (adjust for DST)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8787/cycle",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "final-cycle",
+      "name": "Final Cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $input.first().json.decision || {};\nconst account = $input.first().json.market_state?.account || {};\nreturn [{\n  json: {\n    cycle_id: $input.first().json.cycle_id,\n    action: decision.action,\n    pair: decision.pair,\n    balance: account.balance,\n    equity: account.equity,\n    profit: account.profit,\n    report: `Session P&L: ${account.profit ?? 'N/A'} ${account.currency ?? ''}`\n  }\n}];"
+      },
+      "id": "build-report",
+      "name": "Build P&L Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.report }}"
+      },
+      "id": "push-report",
+      "name": "Push Report",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 300],
+      "notes": "Wire to Slack/email node in production"
+    }
+  ],
+  "connections": {
+    "Daily 21:15 CET": {
+      "main": [[{"node": "Final Cycle", "type": "main", "index": 0}]]
+    },
+    "Final Cycle": {
+      "main": [[{"node": "Build P&L Report", "type": "main", "index": 0}]]
+    },
+    "Build P&L Report": {
+      "main": [[{"node": "Push Report", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "description": "End-of-session P&L summary fired at 21:15 CET Mon-Fri."
+  }
+}

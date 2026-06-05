@@ -1,0 +1,56 @@
+"""Human-readable string mappings to MetaTrader5 numeric constants."""
+
+from __future__ import annotations
+
+import MetaTrader5 as mt5
+
+TIMEFRAME_MAP: dict[str, int] = {
+    "M1": mt5.TIMEFRAME_M1,
+    "M5": mt5.TIMEFRAME_M5,
+    "M15": mt5.TIMEFRAME_M15,
+    "M30": mt5.TIMEFRAME_M30,
+    "H1": mt5.TIMEFRAME_H1,
+    "H4": mt5.TIMEFRAME_H4,
+    "D1": mt5.TIMEFRAME_D1,
+    "W1": mt5.TIMEFRAME_W1,
+    "MN1": mt5.TIMEFRAME_MN1,
+}
+
+ORDER_TYPE_MAP: dict[str, int] = {
+    "BUY": mt5.ORDER_TYPE_BUY,
+    "SELL": mt5.ORDER_TYPE_SELL,
+    "BUY_LIMIT": mt5.ORDER_TYPE_BUY_LIMIT,
+    "SELL_LIMIT": mt5.ORDER_TYPE_SELL_LIMIT,
+    "BUY_STOP": mt5.ORDER_TYPE_BUY_STOP,
+    "SELL_STOP": mt5.ORDER_TYPE_SELL_STOP,
+}
+
+FILLING_MAP: dict[str, int] = {
+    "FOK": mt5.ORDER_FILLING_FOK,
+    "IOC": mt5.ORDER_FILLING_IOC,
+    "RETURN": mt5.ORDER_FILLING_RETURN,
+}
+
+TIME_MAP: dict[str, int] = {
+    "GTC": mt5.ORDER_TIME_GTC,
+    "DAY": mt5.ORDER_TIME_DAY,
+    "SPECIFIED": mt5.ORDER_TIME_SPECIFIED,
+    "SPECIFIED_DAY": mt5.ORDER_TIME_SPECIFIED_DAY,
+}
+
+TRADE_ACTION_MAP: dict[str, int] = {
+    "DEAL": mt5.TRADE_ACTION_DEAL,
+    "PENDING": mt5.TRADE_ACTION_PENDING,
+    "SLTP": mt5.TRADE_ACTION_SLTP,
+    "MODIFY": mt5.TRADE_ACTION_MODIFY,
+    "REMOVE": mt5.TRADE_ACTION_REMOVE,
+    "CLOSE_BY": mt5.TRADE_ACTION_CLOSE_BY,
+}
+
+MARKET_ORDER_TYPES = {"BUY", "SELL"}
+PENDING_ORDER_TYPES = {"BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"}
+
+DEFAULT_SYMBOLS = ("EURUSD", "GBPUSD", "USDJPY")
+
+MAX_LOT_SIZE = 100.0
+MIN_LOT_SIZE = 0.01

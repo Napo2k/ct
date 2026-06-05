@@ -1,0 +1,50 @@
+{
+  "execution_mode": false,
+  "pairs": ["EURUSD", "GBPUSD", "USDJPY"],
+  "timezone": "Europe/Berlin",
+  "base_lot_size": 0.01,
+  "max_positions": 3,
+  "max_daily_drawdown_pct": 2.0,
+  "max_intraday_drawdown_pct": 1.5,
+  "spread_limits_pips": {
+    "EURUSD": 2.0,
+    "GBPUSD": 3.0,
+    "USDJPY": 3.0
+  },
+  "mt5_mcp": {
+    "transport": "stdio",
+    "command": "python",
+    "args": ["mt5-mcp-server/server.py"],
+    "cwd": "."
+  },
+  "massive_mcp": {
+    "transport": "stdio",
+    "command": "massive-mcp",
+    "args": [],
+    "cwd": "."
+  },
+  "anthropic": {
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 4096
+  },
+  "gitea": {
+    "repo_path": ".",
+    "logs_dir": "logs",
+    "auto_commit": true,
+    "auto_push": false,
+    "remote": "origin",
+    "branch": "main"
+  },
+  "playbook_path": "playbook/algo_trading_skill.md",
+  "prefilter": {
+    "enabled": true,
+    "rsi_long_zone": [40, 65],
+    "rsi_short_zone": [35, 60],
+    "adx_threshold": 20
+  },
+  "http_trigger": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8787
+  }
+}

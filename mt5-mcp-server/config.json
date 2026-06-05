@@ -1,0 +1,9 @@
+{
+  "mt5_path": "",
+  "login": 0,
+  "password": "",
+  "server": "",
+  "timeout_ms": 60000,
+  "default_timeout_sec": 60,
+  "health_timeout_sec": 15
+}

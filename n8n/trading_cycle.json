@@ -1,0 +1,95 @@
+{
+  "name": "ClaudeTrader Trading Cycle",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 7-20 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 15min Mon-Fri",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "07:00-21:00 CET ≈ cron 7-20 UTC (adjust for DST)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8787/cycle",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-cycle",
+      "name": "Trigger Windows Cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "notes": "Calls Windows-native HTTP trigger; host.docker.internal bridges WSL2→Windows"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.errors }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "Cycle OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "message": "=ClaudeTrader cycle {{ $json.cycle_id }}: {{ $json.decision.action }} {{ $json.decision.pair }}"
+      },
+      "id": "notify-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "message": "=ClaudeTrader cycle FAILED: {{ $json.errors }}"
+      },
+      "id": "notify-failure",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 400]
+    }
+  ],
+  "connections": {
+    "Every 15min Mon-Fri": {
+      "main": [[{"node": "Trigger Windows Cycle", "type": "main", "index": 0}]]
+    },
+    "Trigger Windows Cycle": {
+      "main": [[{"node": "Cycle OK?", "type": "main", "index": 0}]]
+    },
+    "Cycle OK?": {
+      "main": [
+        [{"node": "Log Success", "type": "main", "index": 0}],
+        [{"node": "Log Failure", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "description": "ClaudeTrader 15-minute evaluation cycle. Pre-filter runs in Python before LLM invocation."
+  }
+}

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+config/cycle.local.json
+mt5-mcp-server/config.local.json
+logs/**/*.json
+!logs/.gitkeep

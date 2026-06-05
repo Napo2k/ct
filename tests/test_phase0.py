@@ -1,0 +1,125 @@
+"""Phase 0 unit tests — no MT5 or API required."""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from cycle.decision import DecisionValidationError, hold_decision, validate_decision
+from cycle.prefilter import has_warm_signal
+from cycle.regime import classify_regime, evaluate_entry_checklist
+from cycle.veto import check_vetoes
+
+
+def test_classify_trending_bullish():
+    result = classify_regime({"adx": 28, "ema50": 1.09, "ema200": 1.08, "price": 1.095})
+    assert result["regime"] == "TRENDING_BULLISH"
+
+
+def test_classify_ranging():
+    result = classify_regime({"adx": 15, "ema50": 1.09, "ema200": 1.08, "price": 1.095})
+    assert result["regime"] == "RANGING"
+
+
+def test_classify_overextended():
+    result = classify_regime({"adx": 65, "ema50": 1.09, "ema200": 1.08, "price": 1.095})
+    assert result["regime"] == "OVEREXTENDED"
+
+
+def test_entry_checklist_high_confidence():
+    regime = {"regime": "TRENDING_BULLISH"}
+    h1 = {
+        "rsi": 55,
+        "macd": 0.001,
+        "macd_signal": 0.0005,
+        "macd_bullish": True,
+        "price": 1.095,
+        "ema50": 1.09,
+        "veto_active": False,
+    }
+    result = evaluate_entry_checklist(regime, h1, "LONG")
+    assert result["passed"] == 5
+    assert result["confidence"] == "HIGH"
+
+
+def test_warm_signal_rsi_zone():
+    warm, reasons = has_warm_signal(
+        "EURUSD",
+        {"H1": {"rsi": 45}},
+        prefilter_config={"rsi_long_zone": [40, 65], "rsi_short_zone": [35, 60]},
+    )
+    assert warm is True
+    assert any("RSI" in r for r in reasons)
+
+
+def test_warm_signal_open_position():
+    warm, reasons = has_warm_signal("EURUSD", {}, open_position={"ticket": 1})
+    assert warm is True
+
+
+def test_veto_outside_hours():
+    # Saturday
+    now = datetime(2026, 6, 6, 12, 0, tzinfo=timezone.utc)
+    result = check_vetoes(now, timezone="Europe/Berlin")
+    assert result.blocked is True
+
+
+def test_validate_enter_decision():
+    decision = {
+        "action": "ENTER",
+        "pair": "EURUSD",
+        "direction": "LONG",
+        "order_type": "BUY_LIMIT",
+        "lot_size": 0.01,
+        "entry_price": 1.08420,
+        "entry_window": [1.0835, 1.0850],
+        "stop_loss": 1.08180,
+        "take_profit": 1.08900,
+        "reasoning": (
+            "1. VETO CHECK: all PASS\n"
+            "2. REGIME CLASSIFICATION: TRENDING BULLISH\n"
+            "3. SIGNAL EVALUATION: 5/5 PASS\n"
+            "4. RISK CALCULATION: R:R 1.67\n"
+            "5. DECISION: ENTER HIGH"
+        ),
+        "confidence": "HIGH",
+        "cycle_id": "2026-06-05T14:30:00Z",
+    }
+    validated = validate_decision(decision, cycle_id="2026-06-05T14:30:00Z")
+    assert validated["action"] == "ENTER"
+
+
+def test_validate_rr_rejection():
+    decision = {
+        "action": "ENTER",
+        "pair": "EURUSD",
+        "direction": "LONG",
+        "order_type": "BUY_LIMIT",
+        "lot_size": 0.01,
+        "entry_price": 1.08420,
+        "entry_window": None,
+        "stop_loss": 1.08300,
+        "take_profit": 1.08450,
+        "reasoning": (
+            "1. VETO CHECK: PASS\n"
+            "2. REGIME CLASSIFICATION: BULLISH\n"
+            "3. SIGNAL EVALUATION: PASS\n"
+            "4. RISK CALCULATION: bad R:R\n"
+            "5. DECISION: ENTER"
+        ),
+        "confidence": "LOW",
+    }
+    with pytest.raises(DecisionValidationError):
+        validate_decision(decision, cycle_id="test")
+
+
+def test_hold_decision_schema():
+    hold = hold_decision("EURUSD", "2026-06-05T12:00:00Z", "No signal")
+    validated = validate_decision(hold, cycle_id="2026-06-05T12:00:00Z")
+    assert validated["action"] == "HOLD"
