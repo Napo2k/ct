@@ -7,7 +7,9 @@ from typing import Any
 
 VALID_ACTIONS = {"ENTER", "EXIT", "MODIFY", "HOLD", "SUSPEND"}
 VALID_DIRECTIONS = {"LONG", "SHORT", None}
-VALID_ORDER_TYPES = {"BUY_LIMIT", "SELL_LIMIT", "BUY", "SELL"}
+VALID_ORDER_TYPES = {"BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP", "BUY", "SELL"}
+PENDING_ORDER_TYPES = {"BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"}
+MARKET_ORDER_TYPES = {"BUY", "SELL"}
 VALID_CONFIDENCE = {"HIGH", "MEDIUM", "LOW"}
 
 REASONING_SECTIONS = [
@@ -119,6 +121,10 @@ def validate_decision(decision: dict[str, Any], *, cycle_id: str) -> dict[str, A
             raise DecisionValidationError("ENTER requires positive lot_size")
         if stop_loss is None or take_profit is None:
             raise DecisionValidationError("ENTER requires stop_loss and take_profit")
+        if order_type in PENDING_ORDER_TYPES and entry_price is None:
+            raise DecisionValidationError(
+                f"ENTER with pending order_type {order_type} requires entry_price"
+            )
         _validate_rr(entry_price, stop_loss, take_profit, direction)
 
     normalized = {

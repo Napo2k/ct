@@ -34,6 +34,16 @@ def main() -> int:
         action="store_true",
         help="Load config and print settings without running cycle",
     )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Offline mode: fixture market data, skip MT5/Massive MCP",
+    )
+    parser.add_argument(
+        "--live-llm",
+        action="store_true",
+        help="With --mock: call Anthropic API instead of mock_llm (needs ANTHROPIC_API_KEY)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -43,9 +53,16 @@ def main() -> int:
 
     config = load_config(args.config)
 
+    if args.mock:
+        config.mock_mode = True
+        if args.live_llm:
+            config.mock_llm = False
+
     if args.dry_run:
         print(json.dumps({
             "execution_mode": config.execution_mode,
+            "mock_mode": config.mock_mode,
+            "mock_llm": config.mock_llm,
             "pairs": config.pairs,
             "playbook": str(config.playbook_file),
             "logs_dir": str(config.logs_dir),

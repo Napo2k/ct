@@ -50,16 +50,28 @@ python tests/gateway_tests.py
 npx @modelcontextprotocol/inspector python server.py
 ```
 
-### 2. Cycle runner
+### 2. Cycle runner (offline — no MT5 required)
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
 
-python scripts/run_cycle.py --dry-run
+# Offline mock cycle (fixture data + mock LLM, no API key needed)
+python scripts/run_cycle.py --mock -v
+
+# Mock data + real Claude reasoning (needs ANTHROPIC_API_KEY)
+export ANTHROPIC_API_KEY=sk-ant-...
+python scripts/run_cycle.py --mock --live-llm -v
+
+# Live broker feeds (requires MT5 gateway on Windows)
 python scripts/run_cycle.py -v
+```
+
+### 2b. Phase 0 audit
+
+```bash
+python scripts/audit_phase0.py --logs-dir logs --min-cycles 50
 ```
 
 ### 3. HTTP trigger (n8n → Windows)
@@ -83,6 +95,8 @@ Import `n8n/trading_cycle.json` (every 15 min Mon–Fri) and `n8n/session_summar
 | `mt5-mcp-server/config.json` | OANDA demo credentials (placeholder) |
 | `ANTHROPIC_API_KEY` | Claude API key (env var, not committed) |
 | `EXECUTION_MODE` | Env override: `true`/`false` |
+| `mock_mode` / `MOCK_MODE` | Offline fixture data, skip MCP connections |
+| `mock_llm` / `MOCK_LLM` | Use deterministic HOLD instead of Anthropic API |
 
 ## Cycle flow
 

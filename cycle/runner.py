@@ -17,6 +17,7 @@ from cycle.executor import execute_decision
 from cycle.gitea_logger import write_cycle_log
 from cycle.llm import LLMError, build_user_prompt, invoke_claude, load_playbook
 from cycle.market_state import fetch_market_state
+from cycle.mock_data import build_mock_market_state, mock_llm_decision
 from cycle.mcp_client import MCPClient, MCPClientError, mcp_session
 from cycle.prefilter import filter_pairs
 from cycle.veto import check_vetoes
@@ -31,9 +32,18 @@ async def run_cycle(config: CycleConfig | None = None) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "cycle_id": cycle_id,
         "execution_mode": cfg.execution_mode,
+        "mock_mode": cfg.mock_mode,
         "skipped_llm": False,
         "errors": [],
     }
+
+    if cfg.mock_mode:
+        logger.info("Running in mock_mode — skipping MT5/Massive MCP connections")
+        market_state = build_mock_market_state(cfg.pairs, cycle_id)
+        summary.update(
+            await _evaluate_and_log(cfg, cycle_id, market_state, None, summary, mock_meta=True)
+        )
+        return summary
 
     mt5_cfg = cfg.mt5_mcp
     massive_cfg = cfg.massive_mcp
@@ -74,8 +84,10 @@ async def _evaluate_and_log(
     cfg: CycleConfig,
     cycle_id: str,
     market_state: dict[str, Any],
-    mt5: MCPClient,
+    mt5: MCPClient | None,
     summary: dict[str, Any],
+    *,
+    mock_meta: bool = False,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {"errors": []}
 
@@ -98,7 +110,12 @@ async def _evaluate_and_log(
 
     if veto.suspend:
         decision = suspend_decision(cycle_id, "Veto: daily drawdown limit reached")
-        log_path = write_cycle_log(cfg, decision, market_state, meta={"veto_suspend": True})
+        log_path = write_cycle_log(
+            cfg,
+            decision,
+            market_state,
+            meta=_log_meta(cfg, mock_meta, veto_suspend=True),
+        )
         result.update({"decision": decision, "log_path": str(log_path), "skipped_llm": True})
         return result
 
@@ -119,7 +136,7 @@ async def _evaluate_and_log(
             cfg,
             decision,
             market_state,
-            meta={"prefilter_skip": True, "warm_reasons": {}},
+            meta=_log_meta(cfg, mock_meta, prefilter_skip=True, warm_reasons={}),
         )
         result.update({"decision": decision, "log_path": str(log_path), "skipped_llm": True})
         return result
@@ -129,21 +146,25 @@ async def _evaluate_and_log(
     result["warm_reasons"] = warm_reasons
 
     try:
-        playbook = load_playbook(cfg.playbook_file)
-        user_prompt = build_user_prompt(
-            cycle_id,
-            pairs_to_eval,
-            market_state,
-            veto_dict,
-            warm_reasons,
-            cfg.execution_mode,
-        )
-        raw_decision = await invoke_claude(
-            playbook=playbook,
-            user_prompt=user_prompt,
-            model=cfg.anthropic.get("model", "claude-sonnet-4-20250514"),
-            max_tokens=int(cfg.anthropic.get("max_tokens", 4096)),
-        )
+        if cfg.mock_mode and cfg.mock_llm:
+            raw_decision = mock_llm_decision(cycle_id, market_state)
+            logger.info("Using mock_llm decision (no Anthropic API call)")
+        else:
+            playbook = load_playbook(cfg.playbook_file)
+            user_prompt = build_user_prompt(
+                cycle_id,
+                pairs_to_eval,
+                market_state,
+                veto_dict,
+                warm_reasons,
+                cfg.execution_mode,
+            )
+            raw_decision = await invoke_claude(
+                playbook=playbook,
+                user_prompt=user_prompt,
+                model=cfg.anthropic.get("model", "claude-sonnet-4-20250514"),
+                max_tokens=int(cfg.anthropic.get("max_tokens", 4096)),
+            )
         decision = validate_decision(raw_decision, cycle_id=cycle_id)
     except (LLMError, DecisionValidationError) as exc:
         logger.error("Decision generation failed: %s", exc)
@@ -169,11 +190,13 @@ async def _evaluate_and_log(
         decision,
         market_state,
         execution_result=execution_result,
-        meta={
-            "warm_reasons": warm_reasons,
-            "veto": veto_dict,
-            "skipped_llm": False,
-        },
+        meta=_log_meta(
+            cfg,
+            mock_meta,
+            warm_reasons=warm_reasons,
+            veto=veto_dict,
+            skipped_llm=False,
+        ),
     )
 
     result.update({
@@ -183,3 +206,11 @@ async def _evaluate_and_log(
         "skipped_llm": False,
     })
     return result
+
+
+def _log_meta(cfg: CycleConfig, mock_meta: bool, **extra: Any) -> dict[str, Any]:
+    meta: dict[str, Any] = dict(extra)
+    if mock_meta or cfg.mock_mode:
+        meta["mock_mode"] = True
+        meta["mock_llm"] = cfg.mock_llm
+    return meta

@@ -19,7 +19,8 @@ from cycle.executor import execute_decision
 from cycle.llm import LLMError
 from cycle.prefilter import has_warm_signal
 from cycle.regime import classify_regime, evaluate_entry_checklist
-from cycle.runner import _evaluate_and_log
+from cycle.mock_data import build_mock_market_state, mock_llm_decision
+from cycle.runner import _evaluate_and_log, run_cycle
 from cycle.veto import check_vetoes
 
 
@@ -101,6 +102,56 @@ def test_validate_enter_decision():
     assert validated["action"] == "ENTER"
 
 
+@pytest.mark.parametrize("order_type", ["BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"])
+def test_enter_pending_order_requires_entry_price(order_type: str):
+    decision = {
+        "action": "ENTER",
+        "pair": "EURUSD",
+        "direction": "LONG",
+        "order_type": order_type,
+        "lot_size": 0.01,
+        "entry_price": None,
+        "entry_window": None,
+        "stop_loss": 1.08180,
+        "take_profit": 1.08900,
+        "reasoning": (
+            "1. VETO CHECK: all PASS\n"
+            "2. REGIME CLASSIFICATION: TRENDING BULLISH\n"
+            "3. SIGNAL EVALUATION: 5/5 PASS\n"
+            "4. RISK CALCULATION: R:R 1.67\n"
+            "5. DECISION: ENTER HIGH"
+        ),
+        "confidence": "HIGH",
+    }
+    with pytest.raises(DecisionValidationError, match="requires entry_price"):
+        validate_decision(decision, cycle_id="test")
+
+
+def test_enter_market_order_allows_null_entry_price():
+    decision = {
+        "action": "ENTER",
+        "pair": "EURUSD",
+        "direction": "LONG",
+        "order_type": "BUY",
+        "lot_size": 0.01,
+        "entry_price": None,
+        "entry_window": [1.0835, 1.0850],
+        "stop_loss": 1.08180,
+        "take_profit": 1.08900,
+        "reasoning": (
+            "1. VETO CHECK: all PASS\n"
+            "2. REGIME CLASSIFICATION: TRENDING BULLISH\n"
+            "3. SIGNAL EVALUATION: 5/5 PASS\n"
+            "4. RISK CALCULATION: R:R 1.67\n"
+            "5. DECISION: ENTER HIGH"
+        ),
+        "confidence": "HIGH",
+    }
+    validated = validate_decision(decision, cycle_id="test")
+    assert validated["order_type"] == "BUY"
+    assert validated["entry_price"] is None
+
+
 def test_validate_rr_rejection():
     decision = {
         "action": "ENTER",
@@ -152,6 +203,39 @@ def test_execute_decision_accepts_suspend_helper():
     result = asyncio.run(run())
     assert result["action"] == "SUSPEND"
     assert result["simulated"] is True
+
+
+def test_mock_market_state_has_warm_eurusd_signal():
+    state = build_mock_market_state(["EURUSD", "GBPUSD"], "2026-06-05T12:00:00Z")
+    assert state["mock_mode"] is True
+    assert state["indicators"]["EURUSD"]["regime"]["regime"] == "TRENDING_BULLISH"
+    warm, reasons = has_warm_signal("EURUSD", state["indicators"]["EURUSD"])
+    assert warm is True
+
+
+def test_mock_llm_decision_validates():
+    state = build_mock_market_state(["EURUSD"], "2026-06-05T12:00:00Z")
+    decision = mock_llm_decision("2026-06-05T12:00:00Z", state)
+    validated = validate_decision(decision, cycle_id="2026-06-05T12:00:00Z")
+    assert validated["action"] == "HOLD"
+
+
+def test_run_cycle_mock_mode(tmp_path):
+    cfg = CycleConfig(
+        mock_mode=True,
+        mock_llm=True,
+        prefilter={"enabled": True},
+        playbook_path="playbook/algo_trading_skill.md",
+        gitea={"repo_path": str(tmp_path), "logs_dir": "logs", "auto_commit": False},
+    )
+
+    async def run() -> dict:
+        return await run_cycle(cfg)
+
+    summary = asyncio.run(run())
+    assert summary["mock_mode"] is True
+    assert summary.get("log_path")
+    assert Path(summary["log_path"]).exists()
 
 
 def test_evaluate_and_log_appends_llm_error_without_keyerror():

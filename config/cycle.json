@@ -1,5 +1,7 @@
 {
   "execution_mode": false,
+  "mock_mode": false,
+  "mock_llm": true,
   "pairs": ["EURUSD", "GBPUSD", "USDJPY"],
   "timezone": "Europe/Berlin",
   "base_lot_size": 0.01,

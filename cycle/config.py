@@ -15,6 +15,8 @@ DEFAULT_CONFIG_PATH = ROOT / "config" / "cycle.json"
 @dataclass
 class CycleConfig:
     execution_mode: bool = False
+    mock_mode: bool = False
+    mock_llm: bool = True
     pairs: list[str] = field(default_factory=lambda: ["EURUSD", "GBPUSD", "USDJPY"])
     timezone: str = "Europe/Berlin"
     base_lot_size: float = 0.01
@@ -65,8 +67,24 @@ def load_config(path: Path | str | None = None) -> CycleConfig:
     elif env_override in {"false", "0", "no"}:
         execution_mode = False
 
+    mock_mode = data.get("mock_mode", False)
+    mock_env = os.environ.get("MOCK_MODE", "").lower()
+    if mock_env in {"true", "1", "yes"}:
+        mock_mode = True
+    elif mock_env in {"false", "0", "no"}:
+        mock_mode = False
+
+    mock_llm = data.get("mock_llm", True)
+    mock_llm_env = os.environ.get("MOCK_LLM", "").lower()
+    if mock_llm_env in {"true", "1", "yes"}:
+        mock_llm = True
+    elif mock_llm_env in {"false", "0", "no"}:
+        mock_llm = False
+
     return CycleConfig(
         execution_mode=execution_mode,
+        mock_mode=mock_mode,
+        mock_llm=mock_llm,
         pairs=[p.upper() for p in data.get("pairs", ["EURUSD", "GBPUSD", "USDJPY"])],
         timezone=data.get("timezone", "Europe/Berlin"),
         base_lot_size=float(data.get("base_lot_size", 0.01)),
