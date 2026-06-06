@@ -185,6 +185,31 @@ def hold_decision(pair: str, cycle_id: str, reason: str) -> dict[str, Any]:
     }
 
 
+def protective_exit_decision(pair: str, cycle_id: str, reason: str) -> dict[str, Any]:
+    """Build a valid EXIT decision injected by the deterministic exit guard."""
+    reasoning = (
+        "1. VETO CHECK: protective exit guard engaged\n"
+        "2. REGIME CLASSIFICATION: deterministic exit signal overrides reasoning\n"
+        "3. SIGNAL EVALUATION: hard exit signal detected on open position\n"
+        f"4. RISK CALCULATION: close to cap downside — {reason}\n"
+        "5. DECISION: EXIT open position"
+    )
+    return {
+        "action": "EXIT",
+        "pair": pair,
+        "direction": None,
+        "order_type": "BUY_LIMIT",
+        "lot_size": 0.0,
+        "entry_price": None,
+        "entry_window": None,
+        "stop_loss": None,
+        "take_profit": None,
+        "reasoning": reasoning,
+        "confidence": "HIGH",
+        "cycle_id": cycle_id,
+    }
+
+
 def suspend_decision(cycle_id: str, reason: str, pair: str = "EURUSD") -> dict[str, Any]:
     return {
         "action": "SUSPEND",

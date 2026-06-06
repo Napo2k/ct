@@ -10,9 +10,11 @@ from cycle.config import CycleConfig, load_config
 from cycle.decision import (
     DecisionValidationError,
     hold_decision,
+    protective_exit_decision,
     suspend_decision,
     validate_decision,
 )
+from cycle.exits import evaluate_exit_signals, first_forced_exit
 from cycle.executor import emergency_close_all, execute_decision
 from cycle.gitea_logger import write_cycle_log
 from cycle.llm import LLMError, build_user_prompt, invoke_claude, load_playbook
@@ -167,6 +169,14 @@ async def _evaluate_and_log(
     }
     result["veto"] = veto_dict
 
+    exit_signals = evaluate_exit_signals(
+        market_state,
+        max_age_hours=float(cfg.maintenance.get("max_position_hours_without_tp", 48)),
+        now=now,
+    )
+    if exit_signals:
+        result["exit_signals"] = exit_signals
+
     emergency_result = None
     if veto.emergency_close and cfg.execution_mode and mt5 is not None:
         emergency_result = await emergency_close_all(mt5, reason="veto emergency")
@@ -252,6 +262,7 @@ async def _evaluate_and_log(
                 warm_reasons,
                 cfg.execution_mode,
                 session=session.to_dict(),
+                exit_signals=exit_signals,
             )
             raw_decision = await invoke_claude(
                 playbook=playbook,
@@ -277,6 +288,20 @@ async def _evaluate_and_log(
 
     if decision.get("action") == "ENTER" and session.lot_multiplier < 1.0:
         decision = apply_lot_multiplier(decision, session.lot_multiplier)
+
+    forced_pair = first_forced_exit(exit_signals)
+    if (
+        cfg.execution_mode
+        and forced_pair
+        and not (decision.get("action") == "EXIT" and decision.get("pair") == forced_pair)
+        and decision.get("action") != "SUSPEND"
+    ):
+        reasons = "; ".join(
+            s["name"] for s in exit_signals[forced_pair]["signals"] if s["severity"] == "HARD"
+        )
+        decision = protective_exit_decision(forced_pair, cycle_id, reasons)
+        result["exit_override"] = {"pair": forced_pair, "reasons": reasons}
+        logger.warning("Protective exit override for %s: %s", forced_pair, reasons)
 
     execution_result = await execute_decision(
         decision,
@@ -313,6 +338,8 @@ async def _evaluate_and_log(
             skipped_llm=False,
             emergency_close=emergency_result,
             maintenance=maintenance_result,
+            exit_signals=exit_signals or None,
+            exit_override=result.get("exit_override"),
         ),
     )
 

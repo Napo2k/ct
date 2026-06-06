@@ -47,6 +47,7 @@ def build_user_prompt(
     warm_reasons: dict[str, list[str]],
     execution_mode: bool,
     session: dict[str, Any] | None = None,
+    exit_signals: dict[str, Any] | None = None,
 ) -> str:
     phase = 1 if execution_mode else 0
     if execution_mode:
@@ -67,11 +68,13 @@ def build_user_prompt(
         "session": session or {},
         "pairs_to_evaluate": pairs,
         "warm_signal_reasons": warm_reasons,
+        "exit_signals": exit_signals or {},
         "veto_checks": veto_result,
         "market_state": market_state,
         "instructions": (
             "Evaluate the market state and produce ONE decision JSON object. "
             "If no action is warranted, return HOLD for the primary pair (EURUSD). "
+            "If exit_signals lists a position with force_exit, prefer EXIT for that pair. "
             f"{exec_note} "
             "Respond with raw JSON only, no markdown fences."
         ),
