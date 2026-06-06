@@ -28,7 +28,10 @@
   },
   "anthropic": {
     "model": "claude-sonnet-4-20250514",
-    "max_tokens": 4096
+    "max_tokens": 4096,
+    "max_retries": 3,
+    "timeout_seconds": 60,
+    "retry_base_delay": 1.0
   },
   "gitea": {
     "repo_path": ".",
