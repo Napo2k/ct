@@ -56,8 +56,12 @@ def write_cycle_log(
 
     pair = _safe_filename_component(str(decision.get("pair", "EURUSD")))
     action = _safe_filename_component(str(decision.get("action", "HOLD")))
-    filename = f"{now.strftime('%H-%M-%S')}_{pair}_{action}.json"
-    log_path = date_dir / filename
+    base = f"{now.strftime('%H-%M-%S')}-{now.microsecond // 1000:03d}_{pair}_{action}"
+    log_path = date_dir / f"{base}.json"
+    suffix = 1
+    while log_path.exists():
+        log_path = date_dir / f"{base}_{suffix}.json"
+        suffix += 1
 
     payload = build_log_payload(
         decision,

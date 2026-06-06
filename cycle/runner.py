@@ -91,8 +91,15 @@ async def _evaluate_and_log(
 ) -> dict[str, Any]:
     result: dict[str, Any] = {"errors": []}
 
+    # Mock mode uses a fixed Wed 10:00 UTC (12:00 CET) so time vetoes don't
+    # block all weekend batch runs while spread/news vetoes still apply.
+    now = (
+        datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc)
+        if cfg.mock_mode
+        else datetime.now(timezone.utc)
+    )
     veto = check_vetoes(
-        datetime.now(timezone.utc),
+        now,
         timezone=cfg.timezone,
         account=market_state.get("account"),
         ticks=market_state.get("ticks"),
@@ -114,7 +121,7 @@ async def _evaluate_and_log(
             cfg,
             decision,
             market_state,
-            meta=_log_meta(cfg, mock_meta, veto_suspend=True),
+            meta=_log_meta(cfg, mock_meta, market_state, veto_suspend=True),
         )
         result.update({"decision": decision, "log_path": str(log_path), "skipped_llm": True})
         return result
@@ -136,7 +143,7 @@ async def _evaluate_and_log(
             cfg,
             decision,
             market_state,
-            meta=_log_meta(cfg, mock_meta, prefilter_skip=True, warm_reasons={}),
+            meta=_log_meta(cfg, mock_meta, market_state, prefilter_skip=True, warm_reasons={}),
         )
         result.update({"decision": decision, "log_path": str(log_path), "skipped_llm": True})
         return result
@@ -193,6 +200,7 @@ async def _evaluate_and_log(
         meta=_log_meta(
             cfg,
             mock_meta,
+            market_state,
             warm_reasons=warm_reasons,
             veto=veto_dict,
             skipped_llm=False,
@@ -208,9 +216,20 @@ async def _evaluate_and_log(
     return result
 
 
-def _log_meta(cfg: CycleConfig, mock_meta: bool, **extra: Any) -> dict[str, Any]:
+def _log_meta(
+    cfg: CycleConfig,
+    mock_meta: bool,
+    market_state: dict[str, Any] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
     meta: dict[str, Any] = dict(extra)
     if mock_meta or cfg.mock_mode:
         meta["mock_mode"] = True
         meta["mock_llm"] = cfg.mock_llm
+    if market_state:
+        if scenario := market_state.get("mock_scenario"):
+            meta["mock_scenario"] = scenario
+        eurusd = market_state.get("indicators", {}).get("EURUSD", {})
+        if regime := eurusd.get("regime"):
+            meta["regime"] = regime
     return meta

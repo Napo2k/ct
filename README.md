@@ -68,11 +68,21 @@ python scripts/run_cycle.py --mock --live-llm -v
 python scripts/run_cycle.py -v
 ```
 
-### 2b. Phase 0 audit
+### 2b. Batch mock cycles (toward 50-cycle goal)
+
+```bash
+python scripts/run_batch.py --count 50
+```
+
+Rotates through 6 scenarios: `trending_bullish`, `ranging`, `overextended`, `high_spread`, `open_position`, `cold_market`.
+
+### 2c. Phase 0 audit
 
 ```bash
 python scripts/audit_phase0.py --logs-dir logs --min-cycles 50
 ```
+
+Checks: valid JSON, veto compliance, phantom trades, R:R ≥ 1.5, regime accuracy ≥ 95%.
 
 ### 3. HTTP trigger (n8n → Windows)
 

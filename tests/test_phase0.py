@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,12 @@ from cycle.executor import execute_decision
 from cycle.llm import LLMError
 from cycle.prefilter import has_warm_signal
 from cycle.regime import classify_regime, evaluate_entry_checklist
-from cycle.mock_data import build_mock_market_state, mock_llm_decision
+from cycle.mock_data import (
+    build_mock_market_state,
+    list_mock_scenarios,
+    mock_llm_decision,
+    reset_scenario_rotation,
+)
 from cycle.runner import _evaluate_and_log, run_cycle
 from cycle.veto import check_vetoes
 
@@ -206,21 +212,41 @@ def test_execute_decision_accepts_suspend_helper():
 
 
 def test_mock_market_state_has_warm_eurusd_signal():
-    state = build_mock_market_state(["EURUSD", "GBPUSD"], "2026-06-05T12:00:00Z")
+    state = build_mock_market_state(
+        ["EURUSD", "GBPUSD"], "2026-06-05T12:00:00Z", scenario="trending_bullish"
+    )
     assert state["mock_mode"] is True
+    assert state["mock_scenario"] == "trending_bullish"
     assert state["indicators"]["EURUSD"]["regime"]["regime"] == "TRENDING_BULLISH"
     warm, reasons = has_warm_signal("EURUSD", state["indicators"]["EURUSD"])
     assert warm is True
 
 
-def test_mock_llm_decision_validates():
-    state = build_mock_market_state(["EURUSD"], "2026-06-05T12:00:00Z")
+def test_mock_scenarios_cover_regimes():
+    assert "trending_bullish" in list_mock_scenarios()
+    ranging = build_mock_market_state(["EURUSD"], "t", scenario="ranging")
+    assert ranging["indicators"]["EURUSD"]["regime"]["regime"] == "RANGING"
+    overext = build_mock_market_state(["EURUSD"], "t", scenario="overextended")
+    assert overext["indicators"]["EURUSD"]["regime"]["regime"] == "OVEREXTENDED"
+
+
+def test_mock_llm_enter_decision_validates():
+    state = build_mock_market_state(["EURUSD"], "2026-06-05T12:00:00Z", scenario="trending_bullish")
+    decision = mock_llm_decision("2026-06-05T12:00:00Z", state)
+    validated = validate_decision(decision, cycle_id="2026-06-05T12:00:00Z")
+    assert validated["action"] == "ENTER"
+    assert validated["entry_price"] is not None
+
+
+def test_mock_llm_hold_for_ranging():
+    state = build_mock_market_state(["EURUSD"], "2026-06-05T12:00:00Z", scenario="ranging")
     decision = mock_llm_decision("2026-06-05T12:00:00Z", state)
     validated = validate_decision(decision, cycle_id="2026-06-05T12:00:00Z")
     assert validated["action"] == "HOLD"
 
 
 def test_run_cycle_mock_mode(tmp_path):
+    reset_scenario_rotation()
     cfg = CycleConfig(
         mock_mode=True,
         mock_llm=True,
@@ -235,7 +261,11 @@ def test_run_cycle_mock_mode(tmp_path):
     summary = asyncio.run(run())
     assert summary["mock_mode"] is True
     assert summary.get("log_path")
-    assert Path(summary["log_path"]).exists()
+    log_path = Path(summary["log_path"])
+    assert log_path.exists()
+    payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert payload["meta"].get("mock_mode") is True
+    assert payload["meta"].get("regime")
 
 
 def test_evaluate_and_log_appends_llm_error_without_keyerror():
