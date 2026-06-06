@@ -1,7 +1,7 @@
 # ClaudeTrader Algo Trading Skill
 
-Version: 1.0.0  
-Phase: 0 (evaluation + logging only)
+Version: 1.1.0  
+Phase: 1 (paper execution — demo account only)
 
 ## Pairs & Timeframes
 
@@ -73,11 +73,14 @@ Scoring: 5/5 = HIGH (full lot) | 3–4/5 = MEDIUM (75%) | <3 = HOLD
 - RSI divergence against position → close 50%, tighten SL to BE
 - Regime → TRANSITIONAL → tighten SL to BE+0.5×ATR
 
-## Execution Strategy
+## Execution Strategy (Phase 1 active)
 
-- **Default entry:** BUY_LIMIT / SELL_LIMIT (pending orders)
-- **Market entries:** only with `entry_window` guard; reject if price outside window
+- **Default entry:** BUY_LIMIT / SELL_LIMIT (pending orders) — MT5 fills at price automatically
+- **Market entries:** only with `entry_window` guard; rejected if price outside window at execution
 - **Never** place market orders without fresh tick validation
+- **Risk guards (pre-execution):** max 3 positions, 1 per pair, free margin ≥ 200%, R:R ≥ 1.5
+- **Emergency close:** Friday 18:00+, HIGH impact news < 30 min, intraday drawdown 1.5%
+- **SUSPEND:** close all positions, no new entries for session
 
 ## Required Reasoning Format (every non-HOLD decision)
 

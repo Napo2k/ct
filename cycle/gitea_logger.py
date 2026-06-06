@@ -33,7 +33,6 @@ def build_log_payload(
         "market_state": market_state,
         "execution_result": execution_result,
         "meta": {
-            "phase": 0,
             "playbook": playbook_version or "playbook/algo_trading_skill.md",
             "logged_at": datetime.now(timezone.utc).isoformat(),
             **(meta or {}),

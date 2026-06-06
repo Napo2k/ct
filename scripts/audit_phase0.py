@@ -118,7 +118,14 @@ def audit_logs(logs_dir: Path, *, min_cycles: int = 50) -> dict:
             stats["errors"].append(f"{path.name}: ENTER despite veto block")
 
         execution = payload.get("execution_result") or {}
-        if execution.get("executed") and not execution.get("simulated"):
+        meta_phase = meta.get("phase", 0)
+        is_mock_exec = execution.get("mock_execution") or meta.get("mock_mode")
+        if (
+            execution.get("executed")
+            and not execution.get("simulated")
+            and not is_mock_exec
+            and meta_phase < 1
+        ):
             stats["phantom_trades"] += 1
             stats["errors"].append(f"{path.name}: phantom trade — executed in Phase 0")
 

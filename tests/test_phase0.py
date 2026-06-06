@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from cycle.config import CycleConfig
 from cycle.decision import DecisionValidationError, hold_decision, suspend_decision, validate_decision
 from cycle.executor import execute_decision
+from cycle.mock_mt5 import MockMT5Client
 from cycle.llm import LLMError
 from cycle.prefilter import has_warm_signal
 from cycle.regime import classify_regime, evaluate_entry_checklist
@@ -207,8 +208,29 @@ def test_execute_decision_accepts_suspend_helper():
         )
 
     result = asyncio.run(run())
-    assert result["action"] == "SUSPEND"
+    assert result["phase"] == 0
     assert result["simulated"] is True
+
+
+def test_execute_suspend_closes_positions_phase1():
+    state = build_mock_market_state(["EURUSD"], "t", scenario="open_position")
+    client = MockMT5Client(state)
+    suspend = suspend_decision("2026-06-05T12:00:00Z", "drawdown limit")
+
+    async def run() -> dict:
+        return await execute_decision(
+            suspend,
+            client,
+            execution_mode=True,
+            cycle_id="2026-06-05T12:00:00Z",
+            market_state=state,
+            mock_execution=True,
+        )
+
+    result = asyncio.run(run())
+    assert result["action"] == "SUSPEND"
+    assert result["executed"] is True
+    assert len(client.positions) == 0
 
 
 def test_mock_market_state_has_warm_eurusd_signal():

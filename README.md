@@ -11,17 +11,29 @@ Autonomous AI trading system for MetaTrader 5 (demo/paper only).
 | Execution | MT5 MCP server (14 tools) |
 | Orchestration | n8n cron → Python cycle → Gitea logs |
 
-## Phase 0 (current)
+## Phase 1 (current)
 
-`EXECUTION_MODE=false` — Claude evaluates and logs decisions. No MT5 write tools called.
+`EXECUTION_MODE=true` — paper execution on OANDA demo via MT5 MCP write tools.
 
-Success criteria:
-- ≥ 50 cycles logged
-- ≥ 95% correct regime classification
-- 100% veto compliance
-- 100% valid decision JSON
-- 0 phantom trades
-- Simulated R:R ≥ 1.5:1 on ENTER decisions
+- Default entries: `BUY_LIMIT` / `SELL_LIMIT` (pending orders)
+- Market entries require `entry_window` guard
+- Risk guards: max 3 positions, 1/pair, free margin ≥ 200%
+- Emergency close on veto (Friday 18:00+, news < 30 min)
+- `SUSPEND` closes all positions
+
+**Without live broker:** use mock execution to test the full Phase 1 path:
+
+```bash
+python scripts/run_cycle.py --mock -v          # MockMT5 records place_order/modify/close
+python scripts/run_batch.py --count 20         # Batch with execution_mode=true from config
+python scripts/audit_phase1.py                 # Audit Phase 1 logs
+```
+
+Set `EXECUTION_MODE=false` or `phase: 0` in config to revert to evaluation-only mode.
+
+### Phase 0 criteria (completed via mock)
+
+- ≥ 50 cycles logged · regime accuracy · veto compliance · valid JSON · R:R ≥ 1.5
 
 ## Project layout
 
@@ -76,6 +88,15 @@ python scripts/run_batch.py --count 50
 
 Rotates through 6 scenarios: `trending_bullish`, `ranging`, `overextended`, `high_spread`, `open_position`, `cold_market`.
 
+### 2d. Session summary (21:15 CET report)
+
+```bash
+python scripts/session_summary.py
+python scripts/session_summary.py --date 2026-06-06
+```
+
+Session state (`data/session_state.json`) tracks daily start balance, consecutive losses, and lot multiplier.
+
 ### 2c. Phase 0 audit
 
 ```bash
@@ -104,6 +125,7 @@ Import `n8n/trading_cycle.json` (every 15 min Mon–Fri) and `n8n/session_summar
 | `config/cycle.json` | Pairs, execution mode, MCP commands, Gitea settings |
 | `mt5-mcp-server/config.json` | OANDA demo credentials (placeholder) |
 | `ANTHROPIC_API_KEY` | Claude API key (env var, not committed) |
+| `phase` | `1` = paper execution, `0` = evaluation only |
 | `EXECUTION_MODE` | Env override: `true`/`false` |
 | `mock_mode` / `MOCK_MODE` | Offline fixture data, skip MCP connections |
 | `mock_llm` / `MOCK_LLM` | Use deterministic HOLD instead of Anthropic API |

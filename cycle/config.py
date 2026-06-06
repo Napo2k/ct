@@ -14,7 +14,8 @@ DEFAULT_CONFIG_PATH = ROOT / "config" / "cycle.json"
 
 @dataclass
 class CycleConfig:
-    execution_mode: bool = False
+    phase: int = 1
+    execution_mode: bool = True
     mock_mode: bool = False
     mock_llm: bool = True
     pairs: list[str] = field(default_factory=lambda: ["EURUSD", "GBPUSD", "USDJPY"])
@@ -31,6 +32,7 @@ class CycleConfig:
     playbook_path: str = "playbook/algo_trading_skill.md"
     prefilter: dict[str, Any] = field(default_factory=dict)
     http_trigger: dict[str, Any] = field(default_factory=dict)
+    session_state_dir: str = "data"
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -82,6 +84,7 @@ def load_config(path: Path | str | None = None) -> CycleConfig:
         mock_llm = False
 
     return CycleConfig(
+        phase=int(data.get("phase", 1)),
         execution_mode=execution_mode,
         mock_mode=mock_mode,
         mock_llm=mock_llm,
@@ -99,5 +102,6 @@ def load_config(path: Path | str | None = None) -> CycleConfig:
         playbook_path=data.get("playbook_path", "playbook/algo_trading_skill.md"),
         prefilter=data.get("prefilter", {}),
         http_trigger=data.get("http_trigger", {}),
+        session_state_dir=str(data.get("session_state_dir", "data")),
         raw=data,
     )

@@ -1,5 +1,6 @@
 {
-  "execution_mode": false,
+  "phase": 1,
+  "execution_mode": true,
   "mock_mode": false,
   "mock_llm": true,
   "pairs": ["EURUSD", "GBPUSD", "USDJPY"],
@@ -44,6 +45,7 @@
     "rsi_short_zone": [35, 60],
     "adx_threshold": 20
   },
+  "session_state_dir": "data",
   "http_trigger": {
     "enabled": false,
     "host": "127.0.0.1",

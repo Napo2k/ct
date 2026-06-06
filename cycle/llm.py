@@ -27,10 +27,25 @@ def build_user_prompt(
     veto_result: dict[str, Any],
     warm_reasons: dict[str, list[str]],
     execution_mode: bool,
+    session: dict[str, Any] | None = None,
 ) -> str:
+    phase = 1 if execution_mode else 0
+    if execution_mode:
+        exec_note = (
+            "Phase 1: EXECUTION_MODE is true — decisions WILL be executed on the demo account. "
+            "Default to BUY_LIMIT/SELL_LIMIT. Market orders require entry_window. "
+            "Respect session lot_multiplier if consecutive_losses >= 3."
+        )
+    else:
+        exec_note = (
+            "Phase 0: EXECUTION_MODE is false — recommend only, no trades will be placed."
+        )
+
     payload = {
         "cycle_id": cycle_id,
+        "phase": phase,
         "execution_mode": execution_mode,
+        "session": session or {},
         "pairs_to_evaluate": pairs,
         "warm_signal_reasons": warm_reasons,
         "veto_checks": veto_result,
@@ -38,7 +53,7 @@ def build_user_prompt(
         "instructions": (
             "Evaluate the market state and produce ONE decision JSON object. "
             "If no action is warranted, return HOLD for the primary pair (EURUSD). "
-            "Phase 0: EXECUTION_MODE is false — recommend only, no phantom trades. "
+            f"{exec_note} "
             "Respond with raw JSON only, no markdown fences."
         ),
     }
