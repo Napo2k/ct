@@ -6,7 +6,7 @@ Autonomous AI trading system for MetaTrader 5 (demo/paper only).
 
 | Layer | Component |
 |-------|-----------|
-| Data | Massive MCP (indicators, calendar) + MT5 MCP (ticks, account, OHLCV fallback) |
+| Data | Massive MCP (indicators, calendar) + MT5 MCP (ticks, account, OHLCV indicator fallback) |
 | Reasoning | Claude + `playbook/algo_trading_skill.md` |
 | Execution | MT5 MCP server (14 tools) |
 | Orchestration | n8n cron → Python cycle → Gitea logs |
@@ -78,7 +78,11 @@ python scripts/run_cycle.py --mock --live-llm -v
 
 # Live broker feeds (requires MT5 gateway on Windows)
 python scripts/run_cycle.py -v
+
+# MT5-only mode works without Massive MCP — indicators computed from OHLCV bars
 ```
+
+When Massive MCP is unavailable, `cycle/indicators.py` computes RSI, MACD, ATR, ADX, and EMAs from MT5 `get_rates` data so regime classification and pre-filter still run.
 
 ### 2b. Batch mock cycles (toward 50-cycle goal)
 
@@ -86,7 +90,7 @@ python scripts/run_cycle.py -v
 python scripts/run_batch.py --count 50
 ```
 
-Rotates through 6 scenarios: `trending_bullish`, `ranging`, `overextended`, `high_spread`, `open_position`, `cold_market`.
+Rotates through mock scenarios including `trending_bullish`, `intraday_drawdown`, `open_position`, and `cold_market`.
 
 ### 2d. Session summary (21:15 CET report)
 

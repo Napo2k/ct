@@ -6,10 +6,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from cycle.indicators import compute_indicator_bundle
 from cycle.mcp_client import MCPClient, MCPClientError
 from cycle.regime import classify_regime
 
 logger = logging.getLogger(__name__)
+
+_FALLBACK_BAR_COUNTS = {"H4": 250, "H1": 120, "M15": 60}
 
 
 async def fetch_market_state(
@@ -38,7 +41,10 @@ async def fetch_market_state(
     if massive is not None:
         await _fetch_massive_data(state, pairs, massive)
     else:
-        state["errors"].append("Massive MCP client not available — using MT5 fallback rates")
+        state["errors"].append("Massive MCP client not available — using MT5 indicator fallback")
+
+    if mt5 is not None:
+        await _apply_mt5_indicator_fallback(state, pairs, mt5)
 
     for pair in pairs:
         indicators = state["indicators"].setdefault(pair, {})
@@ -116,6 +122,68 @@ async def _fetch_mt5_data(state: dict[str, Any], pairs: list[str], mt5: MCPClien
                 state["errors"].append(f"get_rates({pair},{tf}): {exc}")
 
 
+async def _apply_mt5_indicator_fallback(
+    state: dict[str, Any],
+    pairs: list[str],
+    mt5: MCPClient,
+) -> None:
+    """Fill missing indicator fields from MT5 OHLCV when Massive MCP is unavailable."""
+    for pair in pairs:
+        for tf in ("H4", "H1", "M15"):
+            bucket = state["indicators"].setdefault(pair, {}).setdefault(tf, {})
+            if not _needs_indicator_fallback(bucket, tf):
+                continue
+
+            count = _FALLBACK_BAR_COUNTS[tf]
+            try:
+                rates = await mt5.call_tool(
+                    "get_rates",
+                    {"symbol": pair, "timeframe": tf, "count": count},
+                )
+            except MCPClientError as exc:
+                state["errors"].append(f"indicator_fallback get_rates({pair},{tf}): {exc}")
+                continue
+
+            if not isinstance(rates, dict) or not rates.get("success") or not rates.get("bars"):
+                continue
+
+            bars = rates["bars"]
+            computed = compute_indicator_bundle(bars)
+            _merge_indicators(bucket, computed)
+
+            if tf == "H1" and len(bars) >= 2:
+                prev = compute_indicator_bundle(bars[:-1])
+                if prev:
+                    state["indicators"][pair]["H1_prev"] = {
+                        k: prev[k]
+                        for k in ("rsi", "macd", "macd_signal", "macd_histogram", "price")
+                        if k in prev
+                    }
+            if tf == "H4" and len(bars) >= 2:
+                prev = compute_indicator_bundle(bars[:-1])
+                if prev and prev.get("adx") is not None:
+                    state["indicators"][pair]["H4_prev"] = {"adx": prev["adx"]}
+
+
+def _needs_indicator_fallback(bucket: dict[str, Any], timeframe: str) -> bool:
+    if bucket.get("data_source") == "massive":
+        return False
+    if timeframe == "H4":
+        return not all(bucket.get(key) is not None for key in ("adx", "ema50", "ema200", "price"))
+    if timeframe == "H1":
+        return not all(bucket.get(key) is not None for key in ("rsi", "macd_histogram", "atr"))
+    return bucket.get("price") is None
+
+
+def _merge_indicators(target: dict[str, Any], computed: dict[str, Any]) -> None:
+    for key, value in computed.items():
+        if key == "data_source":
+            if target.get("data_source") != "massive":
+                target["data_source"] = value
+        elif target.get(key) is None:
+            target[key] = value
+
+
 async def _fetch_massive_data(state: dict[str, Any], pairs: list[str], massive: MCPClient) -> None:
     for pair in pairs:
         for tf in ("H4", "H1", "M15"):
@@ -127,6 +195,7 @@ async def _fetch_massive_data(state: dict[str, Any], pairs: list[str], massive: 
                 if isinstance(data, dict):
                     bucket = state["indicators"].setdefault(pair, {}).setdefault(tf, {})
                     bucket.update(_normalize_indicators(data))
+                    bucket["data_source"] = "massive"
             except MCPClientError:
                 try:
                     data = await massive.call_tool(
@@ -136,6 +205,7 @@ async def _fetch_massive_data(state: dict[str, Any], pairs: list[str], massive: 
                     if isinstance(data, dict):
                         bucket = state["indicators"].setdefault(pair, {}).setdefault(tf, {})
                         bucket.update(_normalize_indicators(data))
+                        bucket["data_source"] = "massive"
                 except MCPClientError as exc:
                     logger.debug("Massive indicators unavailable for %s %s: %s", pair, tf, exc)
 
