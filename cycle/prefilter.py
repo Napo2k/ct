@@ -42,9 +42,18 @@ def has_warm_signal(
 
     rsi = _float(h1.get("rsi"))
     if rsi is not None:
-        if rsi_long[0] <= rsi <= rsi_long[1]:
+        in_long = rsi_long[0] <= rsi <= rsi_long[1]
+        in_short = rsi_short[0] <= rsi <= rsi_short[1]
+        # Long/short zones are mutually exclusive trading directions. In the
+        # overlap range, disambiguate by the neutral RSI midline (50).
+        if in_long and in_short:
+            if rsi >= 50:
+                reasons.append(f"{pair}: RSI H1 {rsi:.1f} in long zone {rsi_long}")
+            else:
+                reasons.append(f"{pair}: RSI H1 {rsi:.1f} in short zone {rsi_short}")
+        elif in_long:
             reasons.append(f"{pair}: RSI H1 {rsi:.1f} in long zone {rsi_long}")
-        if rsi_short[0] <= rsi <= rsi_short[1]:
+        elif in_short:
             reasons.append(f"{pair}: RSI H1 {rsi:.1f} in short zone {rsi_short}")
 
     macd_hist = _float(h1.get("macd_histogram"))

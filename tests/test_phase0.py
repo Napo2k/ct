@@ -72,6 +72,27 @@ def test_warm_signal_rsi_zone():
     assert any("RSI" in r for r in reasons)
 
 
+def test_warm_signal_rsi_overlap_yields_single_zone():
+    cfg = {"rsi_long_zone": [40, 65], "rsi_short_zone": [35, 60]}
+
+    # 50 sits in the overlap [40, 60] — must produce exactly one RSI reason.
+    _, reasons = has_warm_signal("EURUSD", {"H1": {"rsi": 50}}, prefilter_config=cfg)
+    rsi_reasons = [r for r in reasons if "RSI" in r]
+    assert len(rsi_reasons) == 1
+    assert "long zone" in rsi_reasons[0]
+
+    # Below midline leans short, above midline leans long.
+    _, short_reasons = has_warm_signal("EURUSD", {"H1": {"rsi": 45}}, prefilter_config=cfg)
+    short_rsi = [r for r in short_reasons if "RSI" in r]
+    assert len(short_rsi) == 1
+    assert "short zone" in short_rsi[0]
+
+    _, long_reasons = has_warm_signal("EURUSD", {"H1": {"rsi": 62}}, prefilter_config=cfg)
+    long_rsi = [r for r in long_reasons if "RSI" in r]
+    assert len(long_rsi) == 1
+    assert "long zone" in long_rsi[0]
+
+
 def test_warm_signal_open_position():
     warm, reasons = has_warm_signal("EURUSD", {}, open_position={"ticket": 1})
     assert warm is True
