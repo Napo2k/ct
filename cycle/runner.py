@@ -258,6 +258,9 @@ async def _evaluate_and_log(
                 user_prompt=user_prompt,
                 model=cfg.anthropic.get("model", "claude-sonnet-4-20250514"),
                 max_tokens=int(cfg.anthropic.get("max_tokens", 4096)),
+                max_retries=int(cfg.anthropic.get("max_retries", 3)),
+                timeout_seconds=float(cfg.anthropic.get("timeout_seconds", 60.0)),
+                retry_base_delay=float(cfg.anthropic.get("retry_base_delay", 1.0)),
             )
         decision = validate_decision(raw_decision, cycle_id=cycle_id)
     except (LLMError, DecisionValidationError) as exc:
