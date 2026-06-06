@@ -34,7 +34,9 @@ def check_vetoes(
     session_start: time = time(7, 0),
     session_end: time = time(21, 0),
     max_daily_drawdown_pct: float = 2.0,
+    max_intraday_drawdown_pct: float = 1.5,
     daily_start_balance: float | None = None,
+    session_peak_equity: float | None = None,
 ) -> VetoResult:
     """Evaluate all veto conditions. Returns structured PASS/FAIL per check."""
     tz = ZoneInfo(timezone)
@@ -96,6 +98,24 @@ def check_vetoes(
         )
         if suspend_dd:
             result.suspend = True
+
+    peak = session_peak_equity or 0.0
+    if account and peak > 0:
+        equity = float(account.get("equity", account.get("balance", 0)))
+        if equity > 0:
+            intraday_dd = ((peak - equity) / peak) * 100
+            intraday_breach = intraday_dd >= max_intraday_drawdown_pct
+            result.add(
+                f"Intraday drawdown < {max_intraday_drawdown_pct}%",
+                not intraday_breach,
+                (
+                    f"peak={peak:.2f} equity={equity:.2f} "
+                    f"drawdown={intraday_dd:.2f}%"
+                ),
+                emergency=intraday_breach,
+            )
+            if intraday_breach:
+                result.suspend = True
 
     return result
 

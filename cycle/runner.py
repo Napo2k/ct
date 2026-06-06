@@ -155,7 +155,9 @@ async def _evaluate_and_log(
         spread_limits_pips=cfg.spread_limits_pips,
         news_events=market_state.get("news"),
         max_daily_drawdown_pct=cfg.max_daily_drawdown_pct,
+        max_intraday_drawdown_pct=cfg.max_intraday_drawdown_pct,
         daily_start_balance=session.daily_start_balance or None,
+        session_peak_equity=session.session_peak_equity or None,
     )
     veto_dict = {
         "blocked": veto.blocked,

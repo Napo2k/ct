@@ -18,7 +18,7 @@ Autonomous AI trading system for MetaTrader 5 (demo/paper only).
 - Default entries: `BUY_LIMIT` / `SELL_LIMIT` (pending orders)
 - Market entries require `entry_window` guard
 - Risk guards: max 3 positions, 1/pair, free margin ≥ 200%
-- Emergency close on veto (Friday 18:00+, news < 30 min)
+- Emergency close on veto (Friday 18:00+, news < 30 min, intraday drawdown ≥ 1.5%)
 - `SUSPEND` closes all positions
 
 **Without live broker:** use mock execution to test the full Phase 1 path:

@@ -28,6 +28,7 @@ from cycle.prefilter_state import (
 )
 from cycle.runner import run_cycle
 from cycle.session_state import (
+    SessionState,
     apply_lot_multiplier,
     begin_cycle,
     load_session,
@@ -203,6 +204,81 @@ def test_maintenance_closes_aged_position_without_tp():
     )
     assert len(result["closed_positions"]) == 1
     assert len(client.positions) == 0
+
+
+def test_session_peak_equity_tracks_high_water_mark(tmp_path):
+    now = __import__("datetime").datetime(2026, 6, 3, 10, 0, tzinfo=__import__("datetime").timezone.utc)
+    state = begin_cycle(
+        load_session(tmp_path),
+        now=now,
+        timezone="Europe/Berlin",
+        account={"balance": 10000.0, "equity": 10050.0},
+        cycle_id="peak-1",
+    )
+    state = begin_cycle(
+        state,
+        now=now,
+        timezone="Europe/Berlin",
+        account={"balance": 10000.0, "equity": 9980.0},
+        cycle_id="peak-2",
+    )
+    assert state.session_peak_equity == 10050.0
+
+
+def test_intraday_drawdown_suspend_in_mock_cycle(tmp_path):
+    save_session(
+        SessionState(
+            session_date="2026-06-03",
+            daily_start_balance=10000.0,
+            session_peak_equity=10000.0,
+            last_equity=10000.0,
+        ),
+        tmp_path,
+    )
+    state = build_mock_market_state(
+        ["EURUSD"], "2026-06-03T10:00:00Z", scenario="intraday_drawdown"
+    )
+    cfg = CycleConfig(
+        phase=1,
+        execution_mode=True,
+        mock_mode=True,
+        mock_llm=True,
+        prefilter={"enabled": False},
+        session_state_dir=str(tmp_path),
+        playbook_path="playbook/algo_trading_skill.md",
+        gitea={"repo_path": str(tmp_path), "logs_dir": "logs", "auto_commit": False},
+    )
+    client = MockMT5Client(state)
+    state["positions"] = [
+        {
+            "ticket": 10001,
+            "symbol": "EURUSD",
+            "type": 0,
+            "volume": 0.01,
+            "price_open": 1.08350,
+            "sl": 1.08200,
+            "tp": 1.08600,
+        }
+    ]
+    client.positions = list(state["positions"])
+
+    async def run() -> dict:
+        from cycle.runner import _evaluate_and_log
+
+        return await _evaluate_and_log(
+            cfg,
+            "2026-06-03T10:00:00Z",
+            state,
+            client,
+            {"errors": []},
+            mock_meta=True,
+        )
+
+    result = asyncio.run(run())
+    assert result["veto"]["suspend"] is True
+    assert result["veto"]["emergency_close"] is True
+    assert result["decision"]["action"] == "SUSPEND"
+    assert result.get("emergency_close", {}).get("closed", 0) == 1
 
 
 def test_snapshot_indicators_round_trip(tmp_path):

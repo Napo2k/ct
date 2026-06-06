@@ -21,6 +21,7 @@ MOCK_SCENARIOS = (
     "high_spread",
     "open_position",
     "cold_market",
+    "intraday_drawdown",
 )
 
 _scenario_index = 0
@@ -99,23 +100,31 @@ def build_mock_market_state(
             "profit": 6.20,
         })
 
+    account = {
+        "login": 0,
+        "balance": 10000.0,
+        "equity": 10025.50,
+        "margin": 0.0,
+        "free_margin": 10025.50,
+        "margin_level": 0.0,
+        "profit": 25.50,
+        "currency": "USD",
+        "leverage": 50,
+        "trade_allowed": True,
+    }
+    if chosen == "intraday_drawdown":
+        account.update({
+            "equity": 9835.0,
+            "free_margin": 9835.0,
+            "profit": -165.0,
+        })
+
     return {
         "timestamp": cycle_id,
         "pairs": pairs,
         "mock_mode": True,
         "mock_scenario": chosen,
-        "account": {
-            "login": 0,
-            "balance": 10000.0,
-            "equity": 10025.50,
-            "margin": 0.0,
-            "free_margin": 10025.50,
-            "margin_level": 0.0,
-            "profit": 25.50,
-            "currency": "USD",
-            "leverage": 50,
-            "trade_allowed": True,
-        },
+        "account": account,
         "positions": positions,
         "pending_orders": [],
         "ticks": ticks,

@@ -73,8 +73,14 @@ def build_summary(logs_dir: Path, session_date: str | None = None) -> dict:
 
     start_balance = session.daily_start_balance or (balances[0] if balances else 0)
     end_equity = equities[-1] if equities else session.last_equity
+    peak_equity = session.session_peak_equity or (max(equities) if equities else end_equity)
     pnl = end_equity - start_balance if start_balance and end_equity else 0
     pnl_pct = (pnl / start_balance * 100) if start_balance else 0
+    intraday_dd_pct = (
+        ((peak_equity - end_equity) / peak_equity * 100)
+        if peak_equity and end_equity
+        else 0
+    )
 
     return {
         "session_date": session_date,
@@ -82,14 +88,17 @@ def build_summary(logs_dir: Path, session_date: str | None = None) -> dict:
         "actions": actions,
         "executions": executed,
         "daily_start_balance": start_balance,
+        "session_peak_equity": peak_equity,
         "end_equity": end_equity,
         "session_pnl": round(pnl, 2),
         "session_pnl_pct": round(pnl_pct, 2),
+        "intraday_drawdown_pct": round(intraday_dd_pct, 2),
         "consecutive_losses": session.consecutive_losses,
         "lot_multiplier": session.lot_multiplier,
         "report": (
             f"Session {session_date}: {cycles} cycles, P&L {pnl:+.2f} ({pnl_pct:+.2f}%), "
-            f"{executed} executions, loss streak {session.consecutive_losses}"
+            f"intraday DD {intraday_dd_pct:.2f}%, {executed} executions, "
+            f"loss streak {session.consecutive_losses}"
         ),
     }
 

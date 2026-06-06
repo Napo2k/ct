@@ -84,6 +84,33 @@ def test_veto_outside_hours():
     assert result.blocked is True
 
 
+def test_veto_intraday_drawdown_triggers_suspend():
+    now = datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc)
+    result = check_vetoes(
+        now,
+        timezone="Europe/Berlin",
+        account={"equity": 9835.0, "balance": 10000.0},
+        session_peak_equity=10000.0,
+        max_intraday_drawdown_pct=1.5,
+    )
+    assert result.suspend is True
+    assert result.emergency_close is True
+    assert any("Intraday drawdown" in c["name"] for c in result.checks)
+
+
+def test_veto_intraday_drawdown_within_limit():
+    now = datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc)
+    result = check_vetoes(
+        now,
+        timezone="Europe/Berlin",
+        account={"equity": 9920.0, "balance": 10000.0},
+        session_peak_equity=10000.0,
+        max_intraday_drawdown_pct=1.5,
+    )
+    assert result.suspend is False
+    assert result.emergency_close is False
+
+
 def test_validate_enter_decision():
     decision = {
         "action": "ENTER",

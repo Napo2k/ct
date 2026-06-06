@@ -23,6 +23,7 @@ class SessionState:
     consecutive_losses: int = 0
     cycles_today: int = 0
     last_equity: float = 0.0
+    session_peak_equity: float = 0.0
     last_cycle_id: str = ""
     lot_multiplier: float = 1.0
 
@@ -37,6 +38,7 @@ class SessionState:
             consecutive_losses=int(data.get("consecutive_losses", 0)),
             cycles_today=int(data.get("cycles_today", 0)),
             last_equity=float(data.get("last_equity", 0)),
+            session_peak_equity=float(data.get("session_peak_equity", 0)),
             last_cycle_id=str(data.get("last_cycle_id", "")),
             lot_multiplier=float(data.get("lot_multiplier", 1.0)),
         )
@@ -83,12 +85,14 @@ def begin_cycle(
 
     if state.session_date != today:
         balance = float((account or {}).get("balance", equity))
+        peak = max(balance, equity) if equity > 0 else balance
         state = SessionState(
             session_date=today,
             daily_start_balance=balance if balance > 0 else equity,
             consecutive_losses=0,
             cycles_today=0,
             last_equity=equity,
+            session_peak_equity=peak,
             lot_multiplier=1.0,
         )
         logger.info("New session %s — start balance %.2f", today, state.daily_start_balance)
@@ -97,6 +101,7 @@ def begin_cycle(
     state.last_cycle_id = cycle_id
     if equity > 0:
         state.last_equity = equity
+        state.session_peak_equity = max(state.session_peak_equity, equity)
     state.lot_multiplier = lot_multiplier_for_losses(state.consecutive_losses)
     return state
 
@@ -122,6 +127,7 @@ def end_cycle(
 
     if equity > 0:
         state.last_equity = equity
+        state.session_peak_equity = max(state.session_peak_equity, equity)
 
     if execution_result and execution_result.get("executed") and action == "EXIT":
         # Closed positions — treat as potential loss cycle if no profit data

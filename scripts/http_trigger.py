@@ -81,6 +81,8 @@ class CycleHandler(BaseHTTPRequestHandler):
                 "session_date": session.session_date,
                 "cycles_today": session.cycles_today,
                 "consecutive_losses": session.consecutive_losses,
+                "session_peak_equity": session.session_peak_equity,
+                "last_equity": session.last_equity,
             },
         )
 
