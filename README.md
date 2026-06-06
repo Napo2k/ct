@@ -109,10 +109,16 @@ Checks: valid JSON, veto compliance, phantom trades, R:R ≥ 1.5, regime accurac
 
 ```powershell
 # Enable in config/cycle.json: "http_trigger": {"enabled": true, ...}
-python scripts/http_trigger.py
+python scripts/http_trigger.py --force
 ```
 
-n8n workflows in `n8n/` call `POST http://host.docker.internal:8787/cycle`.
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/cycle` | POST | Run one evaluation cycle (`?mock=1` for offline test) |
+| `/health` | GET | Liveness + phase/session snapshot |
+| `/summary` | GET | End-of-session P&L (`?date=YYYY-MM-DD` optional) |
+
+n8n workflows in `n8n/` call `POST /cycle` every 15 min and `GET /summary` at 21:15 CET.
 
 ### 4. n8n import
 

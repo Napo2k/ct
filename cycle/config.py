@@ -33,6 +33,7 @@ class CycleConfig:
     prefilter: dict[str, Any] = field(default_factory=dict)
     http_trigger: dict[str, Any] = field(default_factory=dict)
     session_state_dir: str = "data"
+    maintenance: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -103,5 +104,6 @@ def load_config(path: Path | str | None = None) -> CycleConfig:
         prefilter=data.get("prefilter", {}),
         http_trigger=data.get("http_trigger", {}),
         session_state_dir=str(data.get("session_state_dir", "data")),
+        maintenance=data.get("maintenance", {}),
         raw=data,
     )

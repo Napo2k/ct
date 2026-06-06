@@ -17,6 +17,15 @@ from cycle.executor import emergency_close_all, execute_decision
 from cycle.mock_data import build_mock_market_state, mock_llm_decision, reset_scenario_rotation
 from cycle.mock_mt5 import MockMT5Client
 from cycle.risk import check_enter_risk
+from cycle.maintenance import run_maintenance
+from cycle.prefilter import has_warm_signal
+from cycle.prefilter_state import (
+    enrich_with_previous,
+    load_prefilter_state,
+    save_prefilter_state,
+    snapshot_indicators,
+    update_prefilter_state,
+)
 from cycle.runner import run_cycle
 from cycle.session_state import (
     apply_lot_multiplier,
@@ -138,6 +147,70 @@ def test_enter_risk_blocks_low_confidence_after_loss_streak():
     decision["confidence"] = "MEDIUM"
     risk = check_enter_risk(decision, state, consecutive_losses=3)
     assert risk.allowed is False
+
+
+def test_prefilter_state_detects_macd_cross_on_second_cycle(tmp_path):
+    state = build_mock_market_state(["EURUSD"], "t1", scenario="cold_market")
+    indicators = state["indicators"]["EURUSD"]
+    indicators["H1"]["macd_histogram"] = 0.0002
+    save_prefilter_state(
+        {"EURUSD": {"H1": {"macd_histogram": -0.0001}, "H4": {"adx": 18.0}}},
+        tmp_path,
+    )
+    enrich_with_previous(state, load_prefilter_state(tmp_path))
+    warm, reasons = has_warm_signal("EURUSD", indicators)
+    assert warm is True
+    assert any("MACD histogram sign flip" in r for r in reasons)
+
+
+def test_maintenance_cancels_stale_pending_order():
+    now = __import__("datetime").datetime(2026, 6, 5, 12, 0, tzinfo=__import__("datetime").timezone.utc)
+    stale_ts = int(now.timestamp()) - (50 * 3600)
+    state = build_mock_market_state(["EURUSD"], "t", scenario="trending_bullish")
+    state["pending_orders"] = [
+        {
+            "ticket": 9001,
+            "symbol": "EURUSD",
+            "time_setup": stale_ts,
+            "volume_current": 0.01,
+        }
+    ]
+    client = MockMT5Client(state)
+
+    result = asyncio.run(
+        run_maintenance(client, state, max_pending_hours=48, now=now)
+    )
+    assert len(result["cancelled_orders"]) == 1
+    assert result["cancelled_orders"][0]["ticket"] == 9001
+    assert len(client.pending_orders) == 0
+
+
+def test_maintenance_closes_aged_position_without_tp():
+    now = __import__("datetime").datetime(2026, 6, 5, 12, 0, tzinfo=__import__("datetime").timezone.utc)
+    stale_ts = int(now.timestamp()) - (50 * 3600)
+    state = build_mock_market_state(["EURUSD"], "t", scenario="open_position")
+    state["positions"][0]["time"] = stale_ts
+    state["positions"][0]["tp"] = 0
+    client = MockMT5Client(state)
+
+    result = asyncio.run(
+        run_maintenance(
+            client,
+            state,
+            max_position_hours_without_tp=48,
+            now=now,
+        )
+    )
+    assert len(result["closed_positions"]) == 1
+    assert len(client.positions) == 0
+
+
+def test_snapshot_indicators_round_trip(tmp_path):
+    state = build_mock_market_state(["EURUSD"], "t", scenario="trending_bullish")
+    update_prefilter_state(state, tmp_path)
+    saved = load_prefilter_state(tmp_path)
+    assert "EURUSD" in saved
+    assert "rsi" in saved["EURUSD"]["H1"]
 
 
 def test_phase0_simulation_when_execution_disabled():

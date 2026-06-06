@@ -21,27 +21,18 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:8787/cycle",
+        "method": "GET",
+        "url": "http://host.docker.internal:8787/summary",
         "options": {
-          "timeout": 120000
+          "timeout": 60000
         }
       },
-      "id": "final-cycle",
-      "name": "Final Cycle",
+      "id": "fetch-summary",
+      "name": "Fetch Session Summary",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "const decision = $input.first().json.decision || {};\nconst account = $input.first().json.market_state?.account || {};\nreturn [{\n  json: {\n    cycle_id: $input.first().json.cycle_id,\n    action: decision.action,\n    pair: decision.pair,\n    balance: account.balance,\n    equity: account.equity,\n    profit: account.profit,\n    report: `Session P&L: ${account.profit ?? 'N/A'} ${account.currency ?? ''}`\n  }\n}];"
-      },
-      "id": "build-report",
-      "name": "Build P&L Report",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [720, 300]
+      "position": [480, 300],
+      "notes": "Uses session_summary via HTTP trigger — no extra cycle run"
     },
     {
       "parameters": {
@@ -51,18 +42,15 @@
       "name": "Push Report",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [960, 300],
+      "position": [720, 300],
       "notes": "Wire to Slack/email node in production"
     }
   ],
   "connections": {
     "Daily 21:15 CET": {
-      "main": [[{"node": "Final Cycle", "type": "main", "index": 0}]]
+      "main": [[{"node": "Fetch Session Summary", "type": "main", "index": 0}]]
     },
-    "Final Cycle": {
-      "main": [[{"node": "Build P&L Report", "type": "main", "index": 0}]]
-    },
-    "Build P&L Report": {
+    "Fetch Session Summary": {
       "main": [[{"node": "Push Report", "type": "main", "index": 0}]]
     }
   },
@@ -70,6 +58,6 @@
     "executionOrder": "v1"
   },
   "meta": {
-    "description": "End-of-session P&L summary fired at 21:15 CET Mon-Fri."
+    "description": "End-of-session P&L summary fired at 21:15 CET Mon-Fri via GET /summary."
   }
 }

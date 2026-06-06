@@ -14,6 +14,23 @@ sys.path.insert(0, str(ROOT))
 from cycle.session_state import load_session  # noqa: E402
 
 
+def _log_session_date(payload: dict, path: Path) -> str | None:
+    meta = payload.get("meta", {})
+    session = meta.get("session", {})
+    if isinstance(session, dict) and session.get("session_date"):
+        return str(session["session_date"])
+
+    decision = payload.get("decision", {})
+    cycle_id = decision.get("cycle_id") or payload.get("cycle_id")
+    if isinstance(cycle_id, str) and len(cycle_id) >= 10:
+        return cycle_id[:10]
+
+    parent = path.parent.name
+    if len(parent) == 10 and parent[4] == "-" and parent[7] == "-":
+        return parent
+    return None
+
+
 def build_summary(logs_dir: Path, session_date: str | None = None) -> dict:
     log_files = sorted(logs_dir.rglob("*.json"))
     session = load_session()
@@ -28,13 +45,16 @@ def build_summary(logs_dir: Path, session_date: str | None = None) -> dict:
     cycles = 0
 
     for path in log_files:
-        if session_date != "all" and session_date not in str(path):
-            continue
         try:
             with path.open(encoding="utf-8") as handle:
                 payload = json.load(handle)
         except (json.JSONDecodeError, OSError):
             continue
+
+        if session_date != "all":
+            log_date = _log_session_date(payload, path)
+            if log_date != session_date and session_date not in str(path):
+                continue
 
         cycles += 1
         decision = payload.get("decision", {})

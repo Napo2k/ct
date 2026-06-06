@@ -20,7 +20,13 @@ from cycle.market_state import fetch_market_state
 from cycle.mock_data import build_mock_market_state, mock_llm_decision
 from cycle.mock_mt5 import MockMT5Client
 from cycle.mcp_client import MCPClient, MCPClientError, mcp_session
+from cycle.maintenance import run_maintenance
 from cycle.prefilter import filter_pairs
+from cycle.prefilter_state import (
+    enrich_with_previous,
+    load_prefilter_state,
+    update_prefilter_state,
+)
 from cycle.session_state import (
     apply_lot_multiplier,
     begin_cycle,
@@ -106,6 +112,7 @@ async def _evaluate_and_log(
 ) -> dict[str, Any]:
     result: dict[str, Any] = {"errors": []}
     mock_execution = cfg.mock_mode and cfg.execution_mode
+    maintenance_result: dict[str, Any] | None = None
 
     now = (
         datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc)
@@ -122,6 +129,23 @@ async def _evaluate_and_log(
         cycle_id=cycle_id,
     )
     result["session"] = session.to_dict()
+
+    prior_indicators = load_prefilter_state(cfg.session_state_dir)
+    prefilter_history = enrich_with_previous(market_state, prior_indicators)
+    if prefilter_history:
+        result["prefilter_history_pairs"] = prefilter_history
+
+    if cfg.execution_mode and mt5 is not None and cfg.maintenance.get("enabled", True):
+        maintenance_result = await run_maintenance(
+            mt5,
+            market_state,
+            max_pending_hours=float(cfg.maintenance.get("max_pending_hours", 48)),
+            max_position_hours_without_tp=float(
+                cfg.maintenance.get("max_position_hours_without_tp", 48)
+            ),
+            now=now,
+        )
+        result["maintenance"] = maintenance_result
 
     veto = check_vetoes(
         now,
@@ -182,6 +206,7 @@ async def _evaluate_and_log(
             "skipped_llm": True,
             "session": session.to_dict(),
         })
+        update_prefilter_state(market_state, cfg.session_state_dir)
         return result
 
     active_pairs, warm_reasons = filter_pairs(
@@ -204,6 +229,7 @@ async def _evaluate_and_log(
             meta=_log_meta(cfg, mock_meta, market_state, prefilter_skip=True, warm_reasons={}),
         )
         result.update({"decision": decision, "log_path": str(log_path), "skipped_llm": True})
+        update_prefilter_state(market_state, cfg.session_state_dir)
         return result
 
     pairs_to_eval = active_pairs or cfg.pairs
@@ -272,7 +298,7 @@ async def _evaluate_and_log(
         decision,
         market_state,
         execution_result=execution_result,
-        meta=_log_meta(
+            meta=_log_meta(
             cfg,
             mock_meta,
             market_state,
@@ -281,6 +307,7 @@ async def _evaluate_and_log(
             veto=veto_dict,
             skipped_llm=False,
             emergency_close=emergency_result,
+            maintenance=maintenance_result,
         ),
     )
 
@@ -291,6 +318,7 @@ async def _evaluate_and_log(
         "skipped_llm": False,
         "session": session.to_dict(),
     })
+    update_prefilter_state(market_state, cfg.session_state_dir)
     return result
 
 

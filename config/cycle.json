@@ -46,6 +46,11 @@
     "adx_threshold": 20
   },
   "session_state_dir": "data",
+  "maintenance": {
+    "enabled": true,
+    "max_pending_hours": 48,
+    "max_position_hours_without_tp": 48
+  },
   "http_trigger": {
     "enabled": false,
     "host": "127.0.0.1",

@@ -9,3 +9,4 @@ mt5-mcp-server/config.local.json
 logs/**/*.json
 !logs/.gitkeep
 data/session_state.json
+data/prefilter_state.json
