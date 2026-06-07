@@ -129,10 +129,6 @@ def end_cycle(
         state.last_equity = equity
         state.session_peak_equity = max(state.session_peak_equity, equity)
 
-    if execution_result and execution_result.get("executed") and action == "EXIT":
-        # Closed positions — treat as potential loss cycle if no profit data
-        pass
-
     return state
 
 
