@@ -7,11 +7,13 @@ from typing import Any
 import MetaTrader5 as mt5
 
 from mt5client import (
+    config_magic,
     is_pending_order_type,
     named_tuple_list_to_dicts,
     named_tuple_to_dict,
     resolve_filling_mode,
     run_mt5,
+    run_mt5_write,
     validate_lot_size,
     validate_order_type,
     validate_price,
@@ -97,13 +99,13 @@ def place_order(
         "sl": sl,
         "tp": tp,
         "deviation": deviation,
-        "magic": 260605,
+        "magic": config_magic(),
         "comment": comment[:31],
         "type_time": validate_time_type(time_type),
         "type_filling": resolve_filling_mode(normalized, filling),
     }
 
-    result = run_mt5(mt5.order_send, request)
+    result = run_mt5_write(mt5.order_send, request, context="place_order", symbol=normalized)
     if result is None:
         return {"success": False, "error": "order_send returned None"}
 
@@ -143,7 +145,9 @@ def modify_order(
     else:
         request["volume"] = order["volume_current"]
 
-    result = run_mt5(mt5.order_send, request)
+    result = run_mt5_write(
+        mt5.order_send, request, context="modify_order", symbol=order["symbol"]
+    )
     if result is None:
         return {"success": False, "error": "order_send returned None"}
 
@@ -167,7 +171,9 @@ def cancel_order(ticket: int) -> dict[str, Any]:
         "symbol": order["symbol"],
     }
 
-    result = run_mt5(mt5.order_send, request)
+    result = run_mt5_write(
+        mt5.order_send, request, context="cancel_order", symbol=order["symbol"]
+    )
     if result is None:
         return {"success": False, "error": "order_send returned None"}
 

@@ -7,7 +7,14 @@ from typing import Any
 from fastmcp import FastMCP
 
 from handlers import account, history, orders, positions, symbols
-from mt5client import MT5Error, ensure_initialized, ensure_write_allowed, is_suspended
+from mt5client import (
+    MT5Error,
+    clear_suspend as _clear_suspend,
+    ensure_initialized,
+    ensure_write_allowed,
+    gateway_status,
+    is_suspended,
+)
 
 mcp = FastMCP(
     name="ClaudeTrader MT5",
@@ -44,6 +51,39 @@ def _handle_tool(handler, *args, write: bool = False, **kwargs) -> dict[str, Any
         return response
     except Exception as exc:  # noqa: BLE001 — surface unexpected failures to MCP client
         return {"success": False, "error": f"Unexpected error: {exc}"}
+
+
+@mcp.tool
+def get_gateway_status() -> dict[str, Any]:
+    """Report suspend state and any orphaned-write marker. Works while suspended."""
+    try:
+        return gateway_status()
+    except MT5Error as exc:
+        return {"success": False, "error": str(exc)}
+
+
+@mcp.tool
+def clear_suspend() -> dict[str, Any]:
+    """Clear the suspend state after a timeout, then re-run the health check.
+
+    Only call after reconciling broker positions/orders against decision logs —
+    a timed-out write may still have executed (see get_gateway_status).
+    """
+    cleared = _clear_suspend()
+    try:
+        ensure_initialized(health_check=True)
+        healthy = True
+        error = None
+    except MT5Error as exc:
+        healthy = False
+        error = str(exc)
+    return {
+        "success": healthy,
+        "cleared": cleared,
+        "healthy": healthy,
+        "error": error,
+        "suspended": is_suspended(),
+    }
 
 
 @mcp.tool

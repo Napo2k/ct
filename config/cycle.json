@@ -83,6 +83,41 @@
     "model": "claude-haiku-4-5",
     "max_tokens": 1024
   },
+  "llm_router": {
+    "enabled": false,
+    "triage_provider": "groq",
+    "triage_model": "llama-3.3-70b-versatile",
+    "triage_timeout_seconds": 20,
+    "default_provider": "anthropic",
+    "fallback_order": [
+      "anthropic"
+    ],
+    "live_approved": [
+      "anthropic"
+    ],
+    "cooldown_seconds": 900,
+    "timeout_seconds": 60,
+    "providers": {
+      "anthropic": {
+        "model": "claude-opus-4-8"
+      },
+      "groq": {
+        "model": "llama-3.3-70b-versatile"
+      },
+      "gemini": {
+        "model": "gemini-2.0-flash"
+      },
+      "mistral": {
+        "model": "mistral-large-latest"
+      },
+      "cohere": {
+        "model": "command-r-plus"
+      },
+      "openai": {
+        "model": "gpt-4o"
+      }
+    }
+  },
   "risk": {
     "risk_per_trade_pct": 1.0,
     "max_lot_size": 0.05,

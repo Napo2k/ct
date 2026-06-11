@@ -51,6 +51,7 @@ class CycleConfig:
     safety: dict[str, Any] = field(default_factory=dict)
     alerts: dict[str, Any] = field(default_factory=dict)
     verifier: dict[str, Any] = field(default_factory=dict)
+    llm_router: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -158,6 +159,7 @@ def load_config(path: Path | str | None = None) -> CycleConfig:
         safety=data.get("safety", {}),
         alerts=data.get("alerts", {}),
         verifier=data.get("verifier", {}),
+        llm_router=data.get("llm_router", {}),
         raw=data,
     )
     validate_config(config)

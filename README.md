@@ -8,7 +8,7 @@ Autonomous AI trading system for MetaTrader 5.
 |-------|-----------|
 | Data | Massive MCP (indicators, calendar) + MT5 MCP (ticks, account, OHLCV indicator fallback) |
 | Reasoning | Claude (`claude-opus-4-8`, adaptive thinking) + `playbook/algo_trading_skill.md` |
-| Execution | MT5 MCP server (14 tools, real-account write guard) |
+| Execution | MT5 MCP server (16 tools, real-account write guard, orphan-write tracking) |
 | Safety | Kill switch, heartbeat, fail-closed vetoes, equity-risk sizing, webhook alerts |
 | Orchestration | n8n cron → Python cycle → Gitea logs |
 
@@ -62,7 +62,7 @@ Set `EXECUTION_MODE=false` or `phase: 0` in config to revert to evaluation-only 
 ## Project layout
 
 ```
-mt5-mcp-server/     # Windows-native MT5 MCP gateway (14 tools, real-account guard)
+mt5-mcp-server/     # Windows-native MT5 MCP gateway (16 tools, real-account guard)
 cycle/              # Cycle orchestration (prefilter, veto, regime, LLM, risk,
                     #   manage, verifier, postmortem, safety, alerts, store)
 backtest/           # Historical replay harness (simulated broker + metrics)
@@ -133,6 +133,32 @@ kept, duplicates skipped.
   Haiku call tries to refute every ENTER; refuted or errored verification
   blocks the entry in live mode (fail closed)
 
+### Multi-provider routing (`llm_router`)
+
+An agentic routing layer (off by default) decides per cycle which LLM makes
+the trading decision:
+
+1. A cheap **triage agent** (default: Groq, generous free tier) classifies the
+   cycle — `routine` (flat, no signals), `standard` (warm entry signals), or
+   `critical` (open positions with exit signals, drawdown pressure, live mode)
+   — and proposes a provider.
+2. The proposal is **sanitized**: unknown providers rejected, providers without
+   API keys or in rate-limit cooldown skipped, and **live mode clamps the
+   choice to `live_approved`** (default: Anthropic only). Free tiers earn
+   trust in paper mode, not with real money.
+3. Failures escalate through `fallback_order`, always ending at Anthropic;
+   HTTP 429 puts a provider into a persisted cooldown
+   (`data/provider_state.json`, 15 min default).
+
+Supported providers (stdlib HTTP, keys via `.env` only): **Anthropic** (full
+path: structured outputs + tools + caching), **Groq**, **Google Gemini**,
+**Mistral**, **Cohere**, **OpenAI** (JSON-mode text, parsed by the same robust
+parser). Whatever model decides, the deterministic pipeline — veto override,
+confidence gate, adversarial verifier, risk checks — applies unchanged, and
+routing metadata (provider, complexity, attempts) lands in every cycle log.
+Model IDs live in the `llm_router.providers` registry — update them there as
+providers release new models.
+
 ## Portfolio risk & position management
 
 - Correlated-exposure veto (EURUSD/GBPUSD 0.85 default matrix, configurable)
@@ -160,7 +186,7 @@ cd mt5-mcp-server
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-# Populate config.json with OANDA demo credentials
+# Put credentials in config.local.json (gitignored) or MT5_* env vars
 python tests/gateway_tests.py
 npx @modelcontextprotocol/inspector python server.py
 ```
@@ -237,7 +263,7 @@ Import `n8n/trading_cycle.json` (every 15 min Mon–Fri) and `n8n/session_summar
 | File | Purpose |
 |------|---------|
 | `config/cycle.json` | Pairs, execution mode, MCP commands, Gitea settings |
-| `mt5-mcp-server/config.json` | OANDA demo credentials (placeholder) |
+| `mt5-mcp-server/config.local.json` | Broker credentials (gitignored; or MT5_* env vars) |
 | `ANTHROPIC_API_KEY` | Claude API key (env var, not committed) |
 | `phase` | `2` = live (requires gates below), `1` = paper execution, `0` = evaluation only |
 | `live_confirmation` | Must equal `I-UNDERSTAND-THIS-TRADES-REAL-MONEY` for phase 2 |

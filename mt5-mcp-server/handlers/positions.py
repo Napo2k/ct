@@ -11,6 +11,7 @@ from mt5client import (
     named_tuple_to_dict,
     resolve_filling_mode,
     run_mt5,
+    run_mt5_write,
     validate_lot_size,
     validate_price,
     validate_symbol,
@@ -61,7 +62,19 @@ def close_position(ticket: int, lot_size: float | None = None) -> dict[str, Any]
 
     position = items[0]
     symbol = position["symbol"]
-    volume = validate_lot_size(lot_size) if lot_size is not None else float(position["volume"])
+    position_volume = float(position["volume"])
+    if lot_size is not None:
+        volume = validate_lot_size(lot_size)
+        if volume > position_volume:
+            return {
+                "success": False,
+                "error": (
+                    f"lot_size {volume} exceeds position volume {position_volume} "
+                    f"for ticket {validated_ticket}"
+                ),
+            }
+    else:
+        volume = position_volume
 
     tick = run_mt5(mt5.symbol_info_tick, symbol)
     if tick is None:
@@ -88,7 +101,7 @@ def close_position(ticket: int, lot_size: float | None = None) -> dict[str, Any]
         "type_filling": resolve_filling_mode(symbol),
     }
 
-    result = run_mt5(mt5.order_send, request)
+    result = run_mt5_write(mt5.order_send, request, context="close_position", symbol=symbol)
     if result is None:
         return {"success": False, "error": "order_send returned None"}
 
@@ -102,7 +115,11 @@ def modify_position(
     stop_loss: float | None = None,
     take_profit: float | None = None,
 ) -> dict[str, Any]:
-    """Modify stop loss and/or take profit on an open position."""
+    """Modify stop loss and/or take profit on an open position.
+
+    Deliberate invariant: SL/TP can be MOVED but never CLEARED — zero/None
+    keep the existing values. This system never wants a stopless position.
+    """
     validated_ticket = validate_ticket(ticket)
     positions = run_mt5(mt5.positions_get, ticket=validated_ticket)
     items = named_tuple_list_to_dicts(positions)
@@ -121,7 +138,9 @@ def modify_position(
         "tp": tp,
     }
 
-    result = run_mt5(mt5.order_send, request)
+    result = run_mt5_write(
+        mt5.order_send, request, context="modify_position", symbol=position["symbol"]
+    )
     if result is None:
         return {"success": False, "error": "order_send returned None"}
 

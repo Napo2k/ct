@@ -69,7 +69,8 @@ def get_tick(symbol: str) -> dict[str, Any]:
 
     data = named_tuple_to_dict(tick)
     spread = data["ask"] - data["bid"]
-    point = run_mt5(mt5.symbol_info, normalized).point
+    info = run_mt5(mt5.symbol_info, normalized)
+    point = getattr(info, "point", None) if info is not None else None
     spread_points = spread / point if point else None
 
     return {

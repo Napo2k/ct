@@ -16,3 +16,4 @@ data/position_state.json
 data/claudetrader.db
 data/history/
 !.env.example
+data/provider_state.json

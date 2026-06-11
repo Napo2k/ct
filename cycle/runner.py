@@ -44,6 +44,13 @@ from cycle.session_state import (
     load_session,
     save_session,
 )
+from cycle.router import (
+    build_triage_summary,
+    decide_with_routing,
+    load_provider_state,
+    route_decision,
+    save_provider_state,
+)
 from cycle.store import db_path_for, record_cycle
 from cycle.verifier import verify_entry
 from cycle.veto import check_vetoes
@@ -357,22 +364,52 @@ async def _evaluate_and_log(
                 exit_signals=exit_signals,
                 live_mode=cfg.live_mode,
             )
-            raw_decision = await invoke_claude(
-                playbook=playbook,
-                user_prompt=user_prompt,
-                model=cfg.anthropic.get("model", "claude-opus-4-8"),
-                max_tokens=int(cfg.anthropic.get("max_tokens", 8192)),
-                max_retries=int(cfg.anthropic.get("max_retries", 3)),
-                timeout_seconds=float(cfg.anthropic.get("timeout_seconds", 60.0)),
-                retry_base_delay=float(cfg.anthropic.get("retry_base_delay", 1.0)),
-                mt5=mt5,
-                enable_tools=bool(cfg.anthropic.get("enable_tools", False)),
-                max_tool_rounds=int(cfg.anthropic.get("max_tool_rounds", 5)),
-                use_structured_output=bool(cfg.anthropic.get("structured_output", True)),
-                cache_playbook=bool(cfg.anthropic.get("cache_playbook", True)),
-            )
+            if cfg.llm_router.get("enabled", False):
+                provider_state = load_provider_state(cfg.session_state_dir)
+                triage = build_triage_summary(
+                    market_state, veto_dict, warm_reasons, exit_signals,
+                    live_mode=cfg.live_mode,
+                )
+                routing = await route_decision(
+                    triage,
+                    router_config=cfg.llm_router,
+                    provider_state=provider_state,
+                    live_mode=cfg.live_mode,
+                )
+                raw_decision, routing_meta = await decide_with_routing(
+                    playbook=playbook,
+                    user_prompt=user_prompt,
+                    routing=routing,
+                    router_config=cfg.llm_router,
+                    anthropic_config=cfg.anthropic,
+                    provider_state=provider_state,
+                    mt5=mt5,
+                )
+                save_provider_state(provider_state, cfg.session_state_dir)
+                result["llm_routing"] = routing_meta
+                logger.info(
+                    "Decision routed to %s (%s): %s",
+                    routing_meta.get("decided_by"),
+                    routing_meta.get("complexity"),
+                    routing_meta.get("reason"),
+                )
+            else:
+                raw_decision = await invoke_claude(
+                    playbook=playbook,
+                    user_prompt=user_prompt,
+                    model=cfg.anthropic.get("model", "claude-opus-4-8"),
+                    max_tokens=int(cfg.anthropic.get("max_tokens", 8192)),
+                    max_retries=int(cfg.anthropic.get("max_retries", 3)),
+                    timeout_seconds=float(cfg.anthropic.get("timeout_seconds", 60.0)),
+                    retry_base_delay=float(cfg.anthropic.get("retry_base_delay", 1.0)),
+                    mt5=mt5,
+                    enable_tools=bool(cfg.anthropic.get("enable_tools", False)),
+                    max_tool_rounds=int(cfg.anthropic.get("max_tool_rounds", 5)),
+                    use_structured_output=bool(cfg.anthropic.get("structured_output", True)),
+                    cache_playbook=bool(cfg.anthropic.get("cache_playbook", True)),
+                )
         decision = validate_decision(raw_decision, cycle_id=cycle_id)
-    except (LLMError, DecisionValidationError) as exc:
+    except (LLMError, DecisionValidationError, RuntimeError) as exc:
         logger.error("Decision generation failed: %s", exc)
         result["errors"].append(str(exc))
         decision = hold_decision("EURUSD", cycle_id, f"Decision error: {exc}")

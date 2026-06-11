@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
@@ -23,10 +25,24 @@ from constants import (
 T = TypeVar("T")
 
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+LOCAL_CONFIG_PATH = Path(__file__).resolve().parent / "config.local.json"
+
+# Credentials may come from the environment (highest precedence) so they never
+# touch a file at all. config.local.json (gitignored) is the file-based home
+# for secrets; the tracked config.json holds placeholders + defaults only.
+_ENV_OVERRIDES = {
+    "login": "MT5_LOGIN",
+    "password": "MT5_PASSWORD",
+    "server": "MT5_SERVER",
+}
 
 _SYMBOL_PATTERN = re.compile(r"^[A-Za-z0-9._#-]{1,32}$")
 
+# stdio dispatch is effectively serial today, but the lock keeps the suspend
+# state machine correct if the server ever moves to a concurrent transport.
+_state_lock = threading.Lock()
 _suspended = False
+_last_write_timeout: dict[str, Any] | None = None
 _config: dict[str, Any] | None = None
 
 
@@ -39,12 +55,48 @@ class MT5Error(Exception):
 
 
 def is_suspended() -> bool:
-    return _suspended
+    with _state_lock:
+        return _suspended
 
 
-def clear_suspend() -> None:
+def _set_suspended() -> None:
     global _suspended
-    _suspended = False
+    with _state_lock:
+        _suspended = True
+
+
+def clear_suspend() -> dict[str, Any]:
+    """Clear suspend + orphan marker. Returns what was cleared for the audit log."""
+    global _suspended, _last_write_timeout
+    with _state_lock:
+        cleared = {
+            "was_suspended": _suspended,
+            "last_write_timeout": _last_write_timeout,
+        }
+        _suspended = False
+        _last_write_timeout = None
+    return cleared
+
+
+def last_write_timeout() -> dict[str, Any] | None:
+    with _state_lock:
+        return dict(_last_write_timeout) if _last_write_timeout else None
+
+
+def _record_write_timeout(context: str, symbol: str | None) -> None:
+    global _last_write_timeout
+    with _state_lock:
+        _last_write_timeout = {
+            "context": context,
+            "symbol": symbol,
+            "timed_out_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+def reset_config_cache() -> None:
+    """Testing hook — force the next _load_config() to re-read files/env."""
+    global _config
+    _config = None
 
 
 def _load_config() -> dict[str, Any]:
@@ -56,17 +108,37 @@ def _load_config() -> dict[str, Any]:
         raise MT5Error(f"Config file not found: {CONFIG_PATH}")
 
     with CONFIG_PATH.open(encoding="utf-8") as handle:
-        _config = json.load(handle)
+        merged = json.load(handle)
+
+    # Gitignored local overlay — the file-based home for real credentials.
+    if LOCAL_CONFIG_PATH.exists():
+        with LOCAL_CONFIG_PATH.open(encoding="utf-8") as handle:
+            merged.update(json.load(handle))
+
+    # Environment variables win over both files.
+    for key, env_name in _ENV_OVERRIDES.items():
+        value = os.environ.get(env_name)
+        if value:
+            merged[key] = int(value) if key == "login" else value
 
     required = ("login", "password", "server")
-    missing = [key for key in required if not _config.get(key)]
+    missing = [key for key in required if not merged.get(key)]
     if missing:
         raise MT5Error(
             f"Missing required config keys: {', '.join(missing)}. "
-            "Populate config.json with OANDA demo credentials."
+            "Put credentials in config.local.json (gitignored) or the "
+            "MT5_LOGIN/MT5_PASSWORD/MT5_SERVER environment variables — "
+            "never in the tracked config.json."
         )
 
+    _config = merged
     return _config
+
+
+# Sentinel distinguishing "the call timed out" from "the call returned None"
+# (mt5.symbol_info legitimately returns None for unknown symbols — that must
+# not be mistaken for a hung terminal).
+TIMEOUT = object()
 
 
 def _run_with_timeout(
@@ -75,10 +147,13 @@ def _run_with_timeout(
     timeout: float | None = None,
     health_check: bool = False,
     **kwargs: Any,
-) -> T | None:
-    """Execute an MT5 call in a daemon thread; return None on timeout."""
-    global _suspended
+) -> T | None | object:
+    """Execute an MT5 call in a daemon thread; return TIMEOUT sentinel on timeout.
 
+    NOTE: a timed-out thread is abandoned, not killed — the underlying MT5
+    call may still complete later. For writes this means an order can reach
+    the broker after we reported failure; run_mt5_write records that risk.
+    """
     config = _load_config()
     if timeout is None:
         timeout = (
@@ -101,8 +176,8 @@ def _run_with_timeout(
     thread.join(timeout)
 
     if thread.is_alive():
-        _suspended = True
-        return None
+        _set_suspended()
+        return TIMEOUT
 
     if error[0] is not None:
         raise error[0]
@@ -120,19 +195,18 @@ def ensure_initialized(*, health_check: bool = False) -> None:
     Three-step initialization guard called before every tool:
     terminal_info → account_info → mt5.login()
     """
-    global _suspended
-
-    if _suspended:
+    if is_suspended():
         raise MT5Error("MT5 client suspended after timeout — action: SUSPEND", suspend=True)
 
     config = _load_config()
     timeout = config.get("health_timeout_sec", 15) if health_check else None
 
     terminal = _run_with_timeout(mt5.terminal_info, timeout=timeout, health_check=health_check)
-    if terminal is None:
+    if terminal is TIMEOUT:
         raise MT5Error("MT5 terminal_info timed out — action: SUSPEND", suspend=True)
 
-    if not terminal.connected:
+    if terminal is None or not terminal.connected:
+        # terminal_info returns None before mt5.initialize() — not a hang.
         init_kwargs: dict[str, Any] = {
             "login": int(config["login"]),
             "password": str(config["password"]),
@@ -144,16 +218,16 @@ def ensure_initialized(*, health_check: bool = False) -> None:
             init_kwargs["path"] = str(mt5_path)
 
         initialized = _run_with_timeout(mt5.initialize, **init_kwargs, timeout=timeout, health_check=health_check)
-        if initialized is None:
+        if initialized is TIMEOUT:
             raise MT5Error("MT5 initialize timed out — action: SUSPEND", suspend=True)
         if not initialized:
             raise MT5Error(f"MT5 initialize failed: {_last_error()}")
 
     account = _run_with_timeout(mt5.account_info, timeout=timeout, health_check=health_check)
-    if account is None:
+    if account is TIMEOUT:
         raise MT5Error("MT5 account_info timed out — action: SUSPEND", suspend=True)
 
-    if account.login != int(config["login"]):
+    if account is None or account.login != int(config["login"]):
         logged_in = _run_with_timeout(
             mt5.login,
             int(config["login"]),
@@ -162,7 +236,7 @@ def ensure_initialized(*, health_check: bool = False) -> None:
             timeout=timeout,
             health_check=health_check,
         )
-        if logged_in is None:
+        if logged_in is TIMEOUT:
             raise MT5Error("MT5 login timed out — action: SUSPEND", suspend=True)
         if not logged_in:
             raise MT5Error(f"MT5 login failed: {_last_error()}")
@@ -174,12 +248,57 @@ def run_mt5(
     health_check: bool = False,
     **kwargs: Any,
 ) -> T:
-    """Run an MT5 API call with timeout protection after ensure_initialized."""
+    """Run an MT5 API call with timeout protection after ensure_initialized.
+
+    A legitimate None result (e.g. symbol_info for an unknown symbol) is
+    returned as-is — only a real timeout raises and suspends.
+    """
     ensure_initialized(health_check=health_check)
     result = _run_with_timeout(func, *args, health_check=health_check, **kwargs)
-    if result is None:
+    if result is TIMEOUT:
         raise MT5Error("MT5 operation timed out — action: SUSPEND", suspend=True)
     return result
+
+
+def run_mt5_write(
+    func: Callable[..., T],
+    *args: Any,
+    context: str,
+    symbol: str | None = None,
+    **kwargs: Any,
+) -> T:
+    """Like run_mt5, but a timeout records an orphaned-write marker.
+
+    The abandoned thread may still deliver the order to the broker after we
+    report failure — callers (and humans) must reconcile broker state before
+    clearing suspend.
+    """
+    ensure_initialized()
+    result = _run_with_timeout(func, *args, **kwargs)
+    if result is TIMEOUT:
+        _record_write_timeout(context, symbol)
+        raise MT5Error(
+            f"MT5 write '{context}' timed out — the order MAY STILL HAVE "
+            "EXECUTED at the broker. Reconcile open positions/orders against "
+            "decision logs before clearing suspend. action: SUSPEND",
+            suspend=True,
+        )
+    return result
+
+
+def config_magic() -> int:
+    """Magic number stamped on gateway-originated orders (config key 'magic')."""
+    return int(_load_config().get("magic", 260605))
+
+
+def gateway_status() -> dict[str, Any]:
+    """Suspend/orphan state — readable even while suspended."""
+    return {
+        "success": True,
+        "suspended": is_suspended(),
+        "last_write_timeout": last_write_timeout(),
+        "allow_real_account": bool(_load_config().get("allow_real_account", False)),
+    }
 
 
 # MT5 account trade modes (mt5.account_info().trade_mode)
@@ -197,8 +316,10 @@ def ensure_write_allowed() -> None:
     """
     config = _load_config()
     account = _run_with_timeout(mt5.account_info)
-    if account is None:
+    if account is TIMEOUT:
         raise MT5Error("MT5 account_info timed out — action: SUSPEND", suspend=True)
+    if account is None:
+        raise MT5Error("Write refused: account_info unavailable")
 
     if account.trade_mode != ACCOUNT_TRADE_MODE_DEMO and not config.get(
         "allow_real_account", False
@@ -250,6 +371,13 @@ def validate_time_type(time_type: str | None) -> int:
     if key not in TIME_MAP:
         allowed = ", ".join(sorted(TIME_MAP))
         raise MT5Error(f"Invalid time_type {time_type!r}. Allowed: {allowed}")
+    if key in {"SPECIFIED", "SPECIFIED_DAY"}:
+        # MT5 rejects these without an expiration timestamp, which this
+        # gateway does not expose — fail here with a clear message instead.
+        raise MT5Error(
+            f"time_type {key} requires an expiration parameter the gateway "
+            "does not support — use GTC or DAY"
+        )
     return TIME_MAP[key]
 
 
