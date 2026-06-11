@@ -1,0 +1,21 @@
+requirements.txt
+  s_c36ffa0e2833d6::t_3628c44a5ae27f 4
+config/cycle.json
+  s_c36ffa0e2833d6::t_23843f27582da6 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "88f740523c87254071eb02633c822c51e258804b",
+  "prompts": {},
+  "sessions": {
+    "s_c36ffa0e2833d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be0fd378-4a75-4452-add2-3feba6e96844",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Nacho Fernandez <ignacio.fernandez@lovable.dev>"
+    }
+  }
+}
