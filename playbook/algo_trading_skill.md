@@ -1,7 +1,7 @@
 # ClaudeTrader Algo Trading Skill
 
-Version: 1.1.0  
-Phase: 1 (paper execution — demo account only)
+Version: 2.0.0  
+Phase: 1 (paper) / 2 (live — real money, HIGH confidence entries only)
 
 ## Pairs & Timeframes
 
@@ -51,6 +51,15 @@ Scoring: 5/5 = HIGH (full lot) | 3–4/5 = MEDIUM (75%) | <3 = HOLD
 - Max intraday drawdown: 1.5% → close all, SUSPEND
 - 3 consecutive losses → reduce to 50% lot, HIGH confidence entries only
 - Free margin < 200% required margin → no new entries
+- Per-trade risk at the stop ≤ 1% of equity (enforced programmatically)
+- Max 10 new entries per day; absolute lot cap from config
+
+## Live Mode (Phase 2 — real money)
+
+- ENTER requires HIGH confidence — MEDIUM/LOW entries are downgraded to HOLD by code
+- Missing or stale market data blocks entries (fail closed) — never reason around a data gap
+- When in doubt, HOLD: a missed trade costs nothing, a bad trade costs capital
+- The kill switch, drawdown vetoes, and risk caps are not negotiable and execute outside this reasoning loop
 
 ## Veto Conditions (checked first — block all new entries)
 

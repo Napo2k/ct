@@ -23,12 +23,14 @@ async def execute_decision(
     base_lot_size: float = 0.01,
     mock_execution: bool = False,
     consecutive_losses: int = 0,
+    risk_config: dict[str, Any] | None = None,
+    trades_today: int = 0,
 ) -> dict[str, Any]:
     """
     Execute a validated decision against MT5 MCP write tools.
 
     Phase 0 (execution_mode=False): simulated result, no writes.
-    Phase 1 (execution_mode=True): live or mock MT5 writes with risk guards.
+    Phase 1/2 (execution_mode=True): mock, paper, or live MT5 writes with risk guards.
     """
     validated = validate_decision(decision, cycle_id=cycle_id)
     action = validated["action"]
@@ -73,10 +75,13 @@ async def execute_decision(
                 mt5,
                 validated,
                 state,
+                cycle_id=cycle_id,
                 max_positions=max_positions,
                 base_lot_size=base_lot_size,
                 mock_execution=mock_execution,
                 consecutive_losses=consecutive_losses,
+                risk_config=risk_config,
+                trades_today=trades_today,
             )
         if action == "EXIT":
             return await _close_positions(mt5, validated, mock_execution=mock_execution)
@@ -85,6 +90,21 @@ async def execute_decision(
         return {"executed": False, "phase": 1, "error": f"Unsupported action: {action}"}
     except (MCPClientError, DecisionValidationError) as exc:
         return {"executed": False, "phase": 1, "error": str(exc), "mock_execution": mock_execution}
+
+
+async def _refresh_exposure(mt5: MCPClient | Any, market_state: dict[str, Any]) -> None:
+    """Refresh positions/pending orders so risk checks see current exposure.
+
+    Raises MCPClientError on failure — callers treat that as a blocked entry
+    (fail closed) rather than trading against a stale snapshot.
+    """
+    positions = await mt5.call_tool("get_open_positions")
+    if isinstance(positions, dict) and positions.get("success"):
+        market_state["positions"] = positions.get("positions", [])
+
+    orders = await mt5.call_tool("get_pending_orders")
+    if isinstance(orders, dict) and orders.get("success"):
+        market_state["pending_orders"] = orders.get("orders", [])
 
 
 async def emergency_close_all(
@@ -129,17 +149,26 @@ async def _place_entry(
     decision: dict[str, Any],
     market_state: dict[str, Any],
     *,
+    cycle_id: str,
     max_positions: int,
     base_lot_size: float,
     mock_execution: bool,
     consecutive_losses: int = 0,
+    risk_config: dict[str, Any] | None = None,
+    trades_today: int = 0,
 ) -> dict[str, Any]:
+    # Re-fetch positions/orders right before placing: the snapshot taken at
+    # cycle start may be stale after maintenance closes or partial fills.
+    await _refresh_exposure(mt5, market_state)
+
     risk = check_enter_risk(
         decision,
         market_state,
         max_positions=max_positions,
         base_lot_size=base_lot_size,
         consecutive_losses=consecutive_losses,
+        risk_config=risk_config,
+        trades_today=trades_today,
     )
     if not risk.allowed:
         failed = [c for c in risk.checks if not c["pass"]]
@@ -153,13 +182,18 @@ async def _place_entry(
             "mock_execution": mock_execution,
         }
 
+    # cycle_id in the comment ties broker history back to the decision log
+    # (MT5 truncates comments to 31 chars; keep the time portion).
+    comment = f"CT {cycle_id[-15:]}" if cycle_id else "ClaudeTrader"
+
     args: dict[str, Any] = {
         "symbol": decision["pair"],
         "order_type": decision["order_type"],
         "lot_size": decision["lot_size"],
         "stop_loss": decision["stop_loss"],
         "take_profit": decision["take_profit"],
-        "comment": "ClaudeTrader",
+        "deviation": int((risk_config or {}).get("max_deviation_points", 20)),
+        "comment": comment,
     }
     if decision["entry_price"] is not None:
         args["price"] = decision["entry_price"]

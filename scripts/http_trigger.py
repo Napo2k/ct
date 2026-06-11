@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import logging
 import sys
@@ -30,6 +31,12 @@ sys.path.insert(0, str(ROOT))
 from cycle.config import CycleConfig, load_config  # noqa: E402
 from cycle.mcp_client import run_async  # noqa: E402
 from cycle.runner import run_cycle  # noqa: E402
+from cycle.safety import (  # noqa: E402
+    engage_kill_switch,
+    heartbeat_age_seconds,
+    kill_switch_engaged,
+    kill_switch_reason,
+)
 from cycle.session_state import load_session  # noqa: E402
 from scripts.session_summary import build_summary  # noqa: E402
 
@@ -42,7 +49,13 @@ class CycleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path not in {"/cycle", "/cycle/"}:
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/killswitch":
+            self._handle_engage_kill_switch()
+            return
+
+        if path != "/cycle":
             self._respond(404, {"error": "not found"})
             return
 
@@ -53,6 +66,21 @@ class CycleHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             logger.exception("Cycle failed")
             self._respond(500, {"error": str(exc)})
+
+    def _handle_engage_kill_switch(self) -> None:
+        """Engage the kill switch remotely. Disengaging requires manual file removal —
+        an operator must positively confirm conditions are safe before trading resumes."""
+        cfg = self.base_config or load_config(self.config_path)
+        length = int(self.headers.get("Content-Length") or 0)
+        reason = "engaged via /killswitch"
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                reason = str(body.get("reason", reason))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+        engage_kill_switch(cfg.kill_switch_path, reason)
+        self._respond(200, {"kill_switch": True, "reason": reason})
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -71,15 +99,24 @@ class CycleHandler(BaseHTTPRequestHandler):
     def _handle_health(self) -> None:
         cfg = self.base_config or load_config(self.config_path)
         session = load_session(cfg.session_state_dir)
+        engaged = kill_switch_engaged(cfg.kill_switch_path)
         self._respond(
             200,
             {
-                "status": "ok",
+                "status": "halted" if engaged else "ok",
                 "phase": cfg.phase,
                 "execution_mode": cfg.execution_mode,
+                "live_mode": cfg.live_mode,
                 "mock_mode": cfg.mock_mode,
+                "kill_switch": engaged,
+                "kill_switch_reason": (
+                    kill_switch_reason(cfg.kill_switch_path) if engaged else None
+                ),
+                "heartbeat_age_seconds": heartbeat_age_seconds(cfg.heartbeat_path),
                 "session_date": session.session_date,
                 "cycles_today": session.cycles_today,
+                "trades_today": session.trades_today,
+                "realized_pnl_today": session.realized_pnl_today,
                 "consecutive_losses": session.consecutive_losses,
                 "session_peak_equity": session.session_peak_equity,
                 "last_equity": session.last_equity,
@@ -101,28 +138,12 @@ class CycleHandler(BaseHTTPRequestHandler):
             return cfg
 
         override_mock = mock_flag.lower() in {"1", "true", "yes"}
-        return CycleConfig(
-            phase=cfg.phase,
-            execution_mode=cfg.execution_mode,
+        if override_mock and cfg.live_mode:
+            raise ValueError("mock override is not allowed while live_mode is active")
+        return dataclasses.replace(
+            cfg,
             mock_mode=override_mock,
             mock_llm=cfg.mock_llm if not override_mock else True,
-            pairs=cfg.pairs,
-            timezone=cfg.timezone,
-            base_lot_size=cfg.base_lot_size,
-            max_positions=cfg.max_positions,
-            max_daily_drawdown_pct=cfg.max_daily_drawdown_pct,
-            max_intraday_drawdown_pct=cfg.max_intraday_drawdown_pct,
-            spread_limits_pips=cfg.spread_limits_pips,
-            mt5_mcp=cfg.mt5_mcp,
-            massive_mcp=cfg.massive_mcp,
-            anthropic=cfg.anthropic,
-            gitea=cfg.gitea,
-            playbook_path=cfg.playbook_path,
-            prefilter=cfg.prefilter,
-            http_trigger=cfg.http_trigger,
-            session_state_dir=cfg.session_state_dir,
-            maintenance=cfg.maintenance,
-            raw=cfg.raw,
         )
 
     def log_message(self, format: str, *args) -> None:  # noqa: A003

@@ -37,8 +37,17 @@ def check_vetoes(
     max_intraday_drawdown_pct: float = 1.5,
     daily_start_balance: float | None = None,
     session_peak_equity: float | None = None,
+    live_mode: bool = False,
+    pairs: list[str] | None = None,
+    stale_tick_ages: dict[str, float] | None = None,
+    news_feed_available: bool = True,
 ) -> VetoResult:
-    """Evaluate all veto conditions. Returns structured PASS/FAIL per check."""
+    """Evaluate all veto conditions. Returns structured PASS/FAIL per check.
+
+    In live_mode the checks fail closed: missing ticks, missing spread data,
+    stale ticks, or an unavailable news feed block new entries instead of
+    being silently skipped.
+    """
     tz = ZoneInfo(timezone)
     local = now.astimezone(tz)
     result = VetoResult()
@@ -69,6 +78,12 @@ def check_vetoes(
             _format_news(high_30),
             emergency=bool(high_30),
         )
+    elif live_mode and not news_feed_available:
+        result.add(
+            "News feed available (live mode)",
+            False,
+            "economic calendar unavailable — blocking entries (fail closed)",
+        )
 
     if ticks and spread_limits_pips:
         for symbol, tick_data in ticks.items():
@@ -81,6 +96,25 @@ def check_vetoes(
                     passed,
                     f"spread={spread_pips:.2f} pips",
                 )
+            elif live_mode:
+                result.add(
+                    f"Spread {symbol} <= {limit} pips",
+                    False,
+                    "spread unavailable — blocking entries (fail closed)",
+                )
+
+    if live_mode and pairs:
+        missing = [p for p in pairs if p not in (ticks or {})]
+        if missing:
+            result.add(
+                "Tick data for all pairs (live mode)",
+                False,
+                f"no tick for: {', '.join(missing)}",
+            )
+
+    for symbol, age in (stale_tick_ages or {}).items():
+        detail = "tick has no timestamp" if age < 0 else f"tick age {age:.0f}s"
+        result.add(f"Fresh tick {symbol}", False, f"{detail} — blocking entries")
 
     if account and daily_start_balance and daily_start_balance > 0:
         equity = float(account.get("equity", account.get("balance", 0)))

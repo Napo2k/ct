@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +24,8 @@ class SessionState:
     daily_start_balance: float = 0.0
     consecutive_losses: int = 0
     cycles_today: int = 0
+    trades_today: int = 0
+    realized_pnl_today: float = 0.0
     last_equity: float = 0.0
     session_peak_equity: float = 0.0
     last_cycle_id: str = ""
@@ -37,6 +41,8 @@ class SessionState:
             daily_start_balance=float(data.get("daily_start_balance", 0)),
             consecutive_losses=int(data.get("consecutive_losses", 0)),
             cycles_today=int(data.get("cycles_today", 0)),
+            trades_today=int(data.get("trades_today", 0)),
+            realized_pnl_today=float(data.get("realized_pnl_today", 0)),
             last_equity=float(data.get("last_equity", 0)),
             session_peak_equity=float(data.get("session_peak_equity", 0)),
             last_cycle_id=str(data.get("last_cycle_id", "")),
@@ -66,8 +72,19 @@ def load_session(state_dir: Path | str | None = None) -> SessionState:
 
 def save_session(state: SessionState, state_dir: Path | str | None = None) -> Path:
     path = _state_path(state_dir)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(state.to_dict(), handle, indent=2)
+    # Atomic write: a crash mid-save must never leave a truncated state file,
+    # because drawdown limits are computed from daily_start_balance on restart.
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".session_state.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(state.to_dict(), handle, indent=2)
+        os.replace(tmp_name, path)
+    except OSError:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
     return path
 
 
@@ -123,15 +140,15 @@ def end_cycle(
             state.consecutive_losses += 1
         elif delta > 0.01:
             state.consecutive_losses = 0
+        state.realized_pnl_today += delta
         state.lot_multiplier = lot_multiplier_for_losses(state.consecutive_losses)
 
     if equity > 0:
         state.last_equity = equity
         state.session_peak_equity = max(state.session_peak_equity, equity)
 
-    if execution_result and execution_result.get("executed") and action == "EXIT":
-        # Closed positions — treat as potential loss cycle if no profit data
-        pass
+    if execution_result and execution_result.get("executed") and action == "ENTER":
+        state.trades_today += 1
 
     return state
 

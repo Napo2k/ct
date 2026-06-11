@@ -10,3 +10,9 @@ logs/**/*.json
 !logs/.gitkeep
 data/session_state.json
 data/prefilter_state.json
+data/heartbeat.json
+data/KILL_SWITCH
+data/position_state.json
+data/claudetrader.db
+data/history/
+!.env.example

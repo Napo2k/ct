@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from cycle.alerts import alert_cycle_events
 from cycle.config import CycleConfig, load_config
 from cycle.decision import (
     DecisionValidationError,
@@ -13,6 +14,12 @@ from cycle.decision import (
     protective_exit_decision,
     suspend_decision,
     validate_decision,
+)
+from cycle.safety import (
+    kill_switch_engaged,
+    kill_switch_reason,
+    stale_ticks,
+    write_heartbeat,
 )
 from cycle.exits import evaluate_exit_signals, first_forced_exit
 from cycle.executor import emergency_close_all, execute_decision
@@ -23,6 +30,7 @@ from cycle.mock_data import build_mock_market_state, mock_llm_decision
 from cycle.mock_mt5 import MockMT5Client
 from cycle.mcp_client import MCPClient, MCPClientError, mcp_session
 from cycle.maintenance import run_maintenance
+from cycle.manage import manage_positions
 from cycle.prefilter import filter_pairs
 from cycle.prefilter_state import (
     enrich_with_previous,
@@ -36,6 +44,8 @@ from cycle.session_state import (
     load_session,
     save_session,
 )
+from cycle.store import db_path_for, record_cycle
+from cycle.verifier import verify_entry
 from cycle.veto import check_vetoes
 
 logger = logging.getLogger(__name__)
@@ -54,6 +64,10 @@ async def run_cycle(config: CycleConfig | None = None) -> dict[str, Any]:
         "errors": [],
     }
 
+    if cfg.live_mode:
+        logger.warning("LIVE MODE ACTIVE — orders will execute with real money")
+        summary["live_mode"] = True
+
     if cfg.mock_mode:
         logger.info("Running in mock_mode — using fixture data")
         market_state = build_mock_market_state(cfg.pairs, cycle_id)
@@ -63,7 +77,7 @@ async def run_cycle(config: CycleConfig | None = None) -> dict[str, Any]:
         summary.update(
             await _evaluate_and_log(cfg, cycle_id, market_state, mt5, summary, mock_meta=True)
         )
-        return summary
+        return await _finalize_cycle(cfg, summary)
 
     mt5_cfg = cfg.mt5_mcp
     massive_cfg = cfg.massive_mcp
@@ -100,6 +114,29 @@ async def run_cycle(config: CycleConfig | None = None) -> dict[str, Any]:
         summary["log_path"] = str(log_path)
         summary["decision"] = decision
 
+    return await _finalize_cycle(cfg, summary)
+
+
+async def _finalize_cycle(cfg: CycleConfig, summary: dict[str, Any]) -> dict[str, Any]:
+    """Heartbeat + alerts + history store on every cycle exit path. Never raises."""
+    try:
+        record_cycle(db_path_for(cfg.session_state_dir), summary)
+    except Exception as exc:  # noqa: BLE001 — the store is best-effort
+        logger.warning("Cycle store write failed: %s", exc)
+    write_heartbeat(
+        cfg.heartbeat_path,
+        {
+            "cycle_id": summary.get("cycle_id"),
+            "phase": cfg.phase,
+            "live_mode": cfg.live_mode,
+            "action": (summary.get("decision") or {}).get("action"),
+            "errors": len(summary.get("errors") or []),
+        },
+    )
+    try:
+        await alert_cycle_events(cfg.alerts, summary)
+    except Exception as exc:  # noqa: BLE001 — alerting must never break the cycle
+        logger.warning("Alert dispatch failed: %s", exc)
     return summary
 
 
@@ -121,6 +158,30 @@ async def _evaluate_and_log(
         if cfg.mock_mode
         else datetime.now(timezone.utc)
     )
+
+    if kill_switch_engaged(cfg.kill_switch_path):
+        reason = kill_switch_reason(cfg.kill_switch_path)
+        logger.warning("Kill switch engaged — suspending: %s", reason)
+        decision = suspend_decision(cycle_id, f"Kill switch: {reason}")
+        execution_result = None
+        if cfg.execution_mode and mt5 is not None:
+            execution_result = await emergency_close_all(mt5, reason=f"kill switch: {reason}")
+        log_path = write_cycle_log(
+            cfg,
+            decision,
+            market_state,
+            execution_result=execution_result,
+            meta=_log_meta(cfg, mock_meta, market_state, kill_switch=True),
+        )
+        result.update({
+            "decision": decision,
+            "execution_result": execution_result,
+            "log_path": str(log_path),
+            "skipped_llm": True,
+            "kill_switch": True,
+            "kill_switch_reason": reason,
+        })
+        return result
 
     session = load_session(cfg.session_state_dir)
     session = begin_cycle(
@@ -149,6 +210,31 @@ async def _evaluate_and_log(
         )
         result["maintenance"] = maintenance_result
 
+    # Protective management (BE moves, trailing, partial closes) runs even
+    # when vetoes block new entries — these actions only ever reduce risk.
+    if cfg.execution_mode and mt5 is not None and cfg.manage.get("enabled", True):
+        manage_result = await manage_positions(
+            mt5,
+            market_state,
+            manage_config=cfg.manage,
+            state_dir=cfg.session_state_dir,
+        )
+        if manage_result["actions"]:
+            result["position_management"] = manage_result
+
+    stale_ages: dict[str, float] = {}
+    if not cfg.mock_mode:
+        stale_ages = stale_ticks(
+            market_state.get("ticks"),
+            now=now,
+            max_age_seconds=float(cfg.safety.get("max_tick_age_seconds", 120)),
+        )
+
+    state_errors = market_state.get("errors") or []
+    news_feed_available = not any(
+        "economic_calendar" in str(e) or "Massive MCP" in str(e) for e in state_errors
+    )
+
     veto = check_vetoes(
         now,
         timezone=cfg.timezone,
@@ -160,6 +246,10 @@ async def _evaluate_and_log(
         max_intraday_drawdown_pct=cfg.max_intraday_drawdown_pct,
         daily_start_balance=session.daily_start_balance or None,
         session_peak_equity=session.session_peak_equity or None,
+        live_mode=cfg.live_mode,
+        pairs=cfg.pairs,
+        stale_tick_ages=stale_ages,
+        news_feed_available=news_feed_available,
     )
     veto_dict = {
         "blocked": veto.blocked,
@@ -196,6 +286,8 @@ async def _evaluate_and_log(
                 base_lot_size=cfg.base_lot_size,
                 mock_execution=mock_execution,
                 consecutive_losses=session.consecutive_losses,
+                risk_config=cfg.risk,
+                trades_today=session.trades_today,
             )
         session = end_cycle(
             session,
@@ -253,7 +345,7 @@ async def _evaluate_and_log(
             raw_decision = mock_llm_decision(cycle_id, market_state)
             logger.info("Using mock_llm decision (no Anthropic API call)")
         else:
-            playbook = load_playbook(cfg.playbook_file)
+            playbook = load_playbook(cfg.playbook_file, lessons_path=cfg.lessons_file)
             user_prompt = build_user_prompt(
                 cycle_id,
                 pairs_to_eval,
@@ -263,15 +355,21 @@ async def _evaluate_and_log(
                 cfg.execution_mode,
                 session=session.to_dict(),
                 exit_signals=exit_signals,
+                live_mode=cfg.live_mode,
             )
             raw_decision = await invoke_claude(
                 playbook=playbook,
                 user_prompt=user_prompt,
-                model=cfg.anthropic.get("model", "claude-sonnet-4-20250514"),
-                max_tokens=int(cfg.anthropic.get("max_tokens", 4096)),
+                model=cfg.anthropic.get("model", "claude-opus-4-8"),
+                max_tokens=int(cfg.anthropic.get("max_tokens", 8192)),
                 max_retries=int(cfg.anthropic.get("max_retries", 3)),
                 timeout_seconds=float(cfg.anthropic.get("timeout_seconds", 60.0)),
                 retry_base_delay=float(cfg.anthropic.get("retry_base_delay", 1.0)),
+                mt5=mt5,
+                enable_tools=bool(cfg.anthropic.get("enable_tools", False)),
+                max_tool_rounds=int(cfg.anthropic.get("max_tool_rounds", 5)),
+                use_structured_output=bool(cfg.anthropic.get("structured_output", True)),
+                cache_playbook=bool(cfg.anthropic.get("cache_playbook", True)),
             )
         decision = validate_decision(raw_decision, cycle_id=cycle_id)
     except (LLMError, DecisionValidationError) as exc:
@@ -285,6 +383,44 @@ async def _evaluate_and_log(
             cycle_id,
             "Veto conditions block new entries — overriding ENTER to HOLD",
         )
+
+    if cfg.live_mode and decision.get("action") == "ENTER":
+        min_confidence = str(cfg.risk.get("live_min_confidence", "HIGH")).upper()
+        if _confidence_rank(decision.get("confidence")) < _confidence_rank(min_confidence):
+            decision = hold_decision(
+                decision.get("pair", "EURUSD"),
+                cycle_id,
+                f"Live mode requires {min_confidence} confidence — "
+                f"got {decision.get('confidence')}, overriding ENTER to HOLD",
+            )
+            result["confidence_gate"] = True
+
+    # Adversarial verification: a second, independent model call tries to refute
+    # the entry. Defaults on in live mode. A verification *error* blocks the
+    # entry in live mode (fail closed) but only warns in paper mode.
+    verifier_enabled = cfg.verifier.get("enabled", cfg.live_mode)
+    if (
+        decision.get("action") == "ENTER"
+        and verifier_enabled
+        and not cfg.mock_mode
+        and not cfg.mock_llm
+    ):
+        verdict = await verify_entry(
+            decision,
+            market_state,
+            veto_dict,
+            verifier_config=cfg.verifier,
+        )
+        result["verifier"] = verdict
+        block_entry = verdict["refuted"] or (cfg.live_mode and not verdict["approved"])
+        if block_entry:
+            reason = verdict["reason"] or verdict.get("error") or "verification unavailable"
+            decision = hold_decision(
+                decision.get("pair", "EURUSD"),
+                cycle_id,
+                f"Entry refused by adversarial verifier: {reason}",
+            )
+            logger.warning("Verifier blocked entry: %s", reason)
 
     if decision.get("action") == "ENTER" and session.lot_multiplier < 1.0:
         decision = apply_lot_multiplier(decision, session.lot_multiplier)
@@ -313,6 +449,8 @@ async def _evaluate_and_log(
         base_lot_size=cfg.base_lot_size,
         mock_execution=mock_execution,
         consecutive_losses=session.consecutive_losses,
+        risk_config=cfg.risk,
+        trades_today=session.trades_today,
     )
 
     session = end_cycle(
@@ -352,6 +490,10 @@ async def _evaluate_and_log(
     })
     update_prefilter_state(market_state, cfg.session_state_dir)
     return result
+
+
+def _confidence_rank(confidence: Any) -> int:
+    return {"LOW": 0, "MEDIUM": 1, "HIGH": 2}.get(str(confidence or "").upper(), 0)
 
 
 def _log_meta(

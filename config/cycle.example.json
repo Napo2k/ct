@@ -3,7 +3,12 @@
   "execution_mode": true,
   "mock_mode": false,
   "mock_llm": true,
-  "pairs": ["EURUSD", "GBPUSD", "USDJPY"],
+  "live_confirmation": "<set to I-UNDERSTAND-THIS-TRADES-REAL-MONEY for phase 2>",
+  "pairs": [
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY"
+  ],
   "timezone": "Europe/Berlin",
   "base_lot_size": 0.01,
   "max_positions": 3,
@@ -17,7 +22,9 @@
   "mt5_mcp": {
     "transport": "stdio",
     "command": "python",
-    "args": ["mt5-mcp-server/server.py"],
+    "args": [
+      "mt5-mcp-server/server.py"
+    ],
     "cwd": "."
   },
   "massive_mcp": {
@@ -27,11 +34,15 @@
     "cwd": "."
   },
   "anthropic": {
-    "model": "claude-sonnet-4-20250514",
-    "max_tokens": 4096,
+    "model": "claude-opus-4-8",
+    "max_tokens": 8192,
     "max_retries": 3,
     "timeout_seconds": 60,
-    "retry_base_delay": 1.0
+    "retry_base_delay": 1.0,
+    "enable_tools": false,
+    "max_tool_rounds": 5,
+    "structured_output": true,
+    "cache_playbook": true
   },
   "gitea": {
     "repo_path": ".",
@@ -44,8 +55,14 @@
   "playbook_path": "playbook/algo_trading_skill.md",
   "prefilter": {
     "enabled": true,
-    "rsi_long_zone": [40, 65],
-    "rsi_short_zone": [35, 60],
+    "rsi_long_zone": [
+      40,
+      65
+    ],
+    "rsi_short_zone": [
+      35,
+      60
+    ],
     "adx_threshold": 20
   },
   "session_state_dir": "data",
@@ -54,9 +71,41 @@
     "max_pending_hours": 48,
     "max_position_hours_without_tp": 48
   },
+  "manage": {
+    "enabled": true,
+    "breakeven_r": 1.0,
+    "trail_r": 1.5,
+    "trail_atr_mult": 1.0,
+    "partial_close_fraction": 0.5,
+    "min_partial_volume": 0.02
+  },
+  "verifier": {
+    "enabled": false,
+    "model": "claude-haiku-4-5",
+    "max_tokens": 1024
+  },
+  "risk": {
+    "risk_per_trade_pct": 1.0,
+    "max_lot_size": 0.05,
+    "max_trades_per_day": 10,
+    "max_deviation_points": 20,
+    "live_min_confidence": "HIGH",
+    "max_net_currency_lots": 0.03,
+    "correlation_threshold": 0.7
+  },
+  "safety": {
+    "max_tick_age_seconds": 120,
+    "kill_switch_file": "KILL_SWITCH"
+  },
+  "alerts": {
+    "webhook_url": "",
+    "min_severity": "WARNING",
+    "timeout_seconds": 5
+  },
   "http_trigger": {
     "enabled": false,
     "host": "127.0.0.1",
     "port": 8787
-  }
+  },
+  "playbook_lessons_path": "playbook/lessons.md"
 }

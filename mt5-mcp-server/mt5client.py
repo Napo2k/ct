@@ -182,6 +182,34 @@ def run_mt5(
     return result
 
 
+# MT5 account trade modes (mt5.account_info().trade_mode)
+ACCOUNT_TRADE_MODE_DEMO = 0
+ACCOUNT_TRADE_MODE_CONTEST = 1
+ACCOUNT_TRADE_MODE_REAL = 2
+
+
+def ensure_write_allowed() -> None:
+    """Refuse write operations on a real-money account unless explicitly enabled.
+
+    Live trading requires config.json to set "allow_real_account": true — an
+    allow-list gate so pointing the gateway at real credentials by mistake
+    cannot place orders. Read tools are unaffected.
+    """
+    config = _load_config()
+    account = _run_with_timeout(mt5.account_info)
+    if account is None:
+        raise MT5Error("MT5 account_info timed out — action: SUSPEND", suspend=True)
+
+    if account.trade_mode != ACCOUNT_TRADE_MODE_DEMO and not config.get(
+        "allow_real_account", False
+    ):
+        raise MT5Error(
+            f"Write refused: account {account.login} is not a demo account "
+            f"(trade_mode={account.trade_mode}) and allow_real_account is not "
+            "enabled in config.json"
+        )
+
+
 def validate_symbol(symbol: str) -> str:
     normalized = symbol.strip().upper()
     if not _SYMBOL_PATTERN.match(normalized):

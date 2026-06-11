@@ -7,13 +7,14 @@ from typing import Any
 from fastmcp import FastMCP
 
 from handlers import account, history, orders, positions, symbols
-from mt5client import MT5Error, ensure_initialized, is_suspended
+from mt5client import MT5Error, ensure_initialized, ensure_write_allowed, is_suspended
 
 mcp = FastMCP(
     name="ClaudeTrader MT5",
     instructions=(
-        "MetaTrader 5 execution gateway for ClaudeTrader (demo/paper only). "
+        "MetaTrader 5 execution gateway for ClaudeTrader. "
         "Read tools provide live broker data; write tools place/modify/cancel orders. "
+        "Write tools refuse non-demo accounts unless allow_real_account is set in config. "
         "On timeout the server enters SUSPEND state — do not retry writes until cleared."
     ),
 )
@@ -26,9 +27,11 @@ def _tool_response(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _handle_tool(handler, *args, **kwargs) -> dict[str, Any]:
+def _handle_tool(handler, *args, write: bool = False, **kwargs) -> dict[str, Any]:
     try:
         ensure_initialized()
+        if write:
+            ensure_write_allowed()
         return _tool_response(handler(*args, **kwargs))
     except MT5Error as exc:
         response: dict[str, Any] = {
@@ -93,7 +96,7 @@ def get_position_by_symbol(symbol: str) -> dict[str, Any]:
 @mcp.tool
 def close_position(ticket: int, lot_size: float | None = None) -> dict[str, Any]:
     """Close an open position fully or partially at market."""
-    return _handle_tool(positions.close_position, ticket, lot_size)
+    return _handle_tool(positions.close_position, ticket, lot_size, write=True)
 
 
 @mcp.tool
@@ -130,6 +133,7 @@ def place_order(
         filling,
         time_type,
         comment,
+        write=True,
     )
 
 
@@ -142,13 +146,13 @@ def modify_order(
     lot_size: float | None = None,
 ) -> dict[str, Any]:
     """Modify price, volume, SL, or TP on a pending order."""
-    return _handle_tool(orders.modify_order, ticket, price, stop_loss, take_profit, lot_size)
+    return _handle_tool(orders.modify_order, ticket, price, stop_loss, take_profit, lot_size, write=True)
 
 
 @mcp.tool
 def cancel_order(ticket: int) -> dict[str, Any]:
     """Cancel a pending order by ticket."""
-    return _handle_tool(orders.cancel_order, ticket)
+    return _handle_tool(orders.cancel_order, ticket, write=True)
 
 
 @mcp.tool
@@ -158,7 +162,7 @@ def modify_position(
     take_profit: float | None = None,
 ) -> dict[str, Any]:
     """Modify stop loss and/or take profit on an open position."""
-    return _handle_tool(positions.modify_position, ticket, stop_loss, take_profit)
+    return _handle_tool(positions.modify_position, ticket, stop_loss, take_profit, write=True)
 
 
 @mcp.tool

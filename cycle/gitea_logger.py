@@ -90,8 +90,10 @@ def _git_commit(config: CycleConfig, log_path: Path) -> None:
     rel_path = log_path.relative_to(repo) if log_path.is_relative_to(repo) else log_path
 
     try:
+        # -f: cycle logs are matched by .gitignore (logs/**/*.json) so local
+        # runs stay clean, but the audit trail must still reach the repo.
         subprocess.run(
-            ["git", "add", str(rel_path)],
+            ["git", "add", "-f", str(rel_path)],
             cwd=repo,
             check=True,
             capture_output=True,
