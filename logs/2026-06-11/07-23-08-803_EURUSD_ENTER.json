@@ -1,0 +1,383 @@
+{
+  "decision": {
+    "action": "ENTER",
+    "pair": "EURUSD",
+    "direction": "LONG",
+    "order_type": "BUY_LIMIT",
+    "lot_size": 0.01,
+    "entry_price": 1.0842,
+    "entry_window": [
+      1.0834,
+      1.085
+    ],
+    "stop_loss": 1.083,
+    "take_profit": 1.0862,
+    "reasoning": "1. VETO CHECK: all conditions PASS\n2. REGIME CLASSIFICATION: TRENDING_BULLISH, ADX 28.5, EMA50 > EMA200\n3. SIGNAL EVALUATION: RSI 52 PASS, MACD bullish PASS, price > EMA50 PASS\n4. RISK CALCULATION: ATR 0.0008, SL 12 pips, TP 20 pips, R:R 1.67, lot 0.01\n5. DECISION: ENTER LONG HIGH confidence via BUY_LIMIT",
+    "confidence": "HIGH",
+    "cycle_id": "2026-06-11T07:23:08Z"
+  },
+  "market_state": {
+    "timestamp": "2026-06-11T07:23:08Z",
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY"
+    ],
+    "mock_mode": true,
+    "mock_scenario": "trending_bullish",
+    "account": {
+      "login": 0,
+      "balance": 10000.0,
+      "equity": 10025.5,
+      "margin": 0.0,
+      "free_margin": 10025.5,
+      "margin_level": 0.0,
+      "profit": 25.5,
+      "currency": "USD",
+      "leverage": 50,
+      "trade_allowed": true
+    },
+    "positions": [],
+    "pending_orders": [
+      {
+        "ticket": 20001,
+        "symbol": "EURUSD",
+        "volume_current": 0.01,
+        "price_open": 1.0842,
+        "sl": 1.083,
+        "tp": 1.0862,
+        "type": "BUY_LIMIT"
+      }
+    ],
+    "ticks": {
+      "EURUSD": {
+        "success": true,
+        "symbol": "EURUSD",
+        "tick": {
+          "bid": 1.08412,
+          "ask": 1.08428,
+          "time": 1781162588
+        },
+        "spread": 0.00015999999999993797,
+        "spread_points": 15.999999999993795,
+        "point": 1e-05
+      },
+      "GBPUSD": {
+        "success": true,
+        "symbol": "GBPUSD",
+        "tick": {
+          "bid": 1.2714,
+          "ask": 1.27158,
+          "time": 1781162588
+        },
+        "spread": 0.00017999999999984695,
+        "spread_points": 17.999999999984695,
+        "point": 1e-05
+      },
+      "USDJPY": {
+        "success": true,
+        "symbol": "USDJPY",
+        "tick": {
+          "bid": 156.42,
+          "ask": 156.438,
+          "time": 1781162588
+        },
+        "spread": 0.018000000000000682,
+        "spread_points": 18.000000000000682,
+        "point": 0.001
+      }
+    },
+    "indicators": {
+      "EURUSD": {
+        "H4": {
+          "adx": 28.5,
+          "ema50": 1.082,
+          "ema200": 1.078,
+          "price": 1.08412,
+          "atr": 0.0012
+        },
+        "H1": {
+          "rsi": 52.0,
+          "macd": 0.00018,
+          "macd_signal": 0.00012,
+          "macd_histogram": 6e-05,
+          "macd_bullish": true,
+          "macd_bearish": false,
+          "ema50": 1.083,
+          "ema200": 1.0795,
+          "price": 1.08412,
+          "atr": 0.0008
+        },
+        "H1_prev": {
+          "rsi": 52.0,
+          "macd": 0.00018,
+          "macd_signal": 0.00012,
+          "macd_histogram": 6e-05
+        },
+        "H4_prev": {
+          "adx": 28.5
+        },
+        "M15": {
+          "rsi": 54.0,
+          "price": 1.08412
+        },
+        "regime": {
+          "regime": "TRENDING_BULLISH",
+          "reason": "EMA50 > EMA200 and price > EMA50",
+          "adx": 28.5,
+          "ema50": 1.082,
+          "ema200": 1.078,
+          "price": 1.08412
+        }
+      },
+      "GBPUSD": {
+        "H4": {
+          "adx": 14.0,
+          "ema50": 1.2714,
+          "ema200": 1.2714,
+          "price": 1.2714,
+          "atr": 0.001
+        },
+        "H1": {
+          "rsi": 50.0,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "macd_histogram": 0.0,
+          "ema50": 1.2714,
+          "price": 1.2714,
+          "atr": 0.0007
+        },
+        "H1_prev": {
+          "rsi": 50.0,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "macd_histogram": 0.0
+        },
+        "M15": {
+          "rsi": 50.0,
+          "price": 1.2714
+        },
+        "regime": {
+          "regime": "RANGING",
+          "reason": "ADX 14.0 < 20",
+          "adx": 14.0,
+          "ema50": 1.2714,
+          "ema200": 1.2714,
+          "price": 1.2714
+        },
+        "H4_prev": {
+          "adx": 14.0
+        }
+      },
+      "USDJPY": {
+        "H4": {
+          "adx": 14.0,
+          "ema50": 156.42,
+          "ema200": 156.42,
+          "price": 156.42,
+          "atr": 0.001
+        },
+        "H1": {
+          "rsi": 50.0,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "macd_histogram": 0.0,
+          "ema50": 156.42,
+          "price": 156.42,
+          "atr": 0.0007
+        },
+        "H1_prev": {
+          "rsi": 50.0,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "macd_histogram": 0.0
+        },
+        "M15": {
+          "rsi": 50.0,
+          "price": 156.42
+        },
+        "regime": {
+          "regime": "RANGING",
+          "reason": "ADX 14.0 < 20",
+          "adx": 14.0,
+          "ema50": 156.42,
+          "ema200": 156.42,
+          "price": 156.42
+        },
+        "H4_prev": {
+          "adx": 14.0
+        }
+      }
+    },
+    "news": [],
+    "errors": []
+  },
+  "execution_result": {
+    "executed": true,
+    "phase": 1,
+    "tool": "place_order",
+    "result": {
+      "success": true,
+      "result": {
+        "retcode": 10009,
+        "order": 20001,
+        "comment": "mock pending"
+      },
+      "request": {
+        "symbol": "EURUSD",
+        "order_type": "BUY_LIMIT",
+        "lot_size": 0.01,
+        "stop_loss": 1.083,
+        "take_profit": 1.0862,
+        "deviation": 20,
+        "comment": "CT 06-11T07:23:08Z",
+        "price": 1.0842,
+        "entry_window": [
+          1.0834,
+          1.085
+        ]
+      }
+    },
+    "risk_checks": [
+      {
+        "name": "Free margin check",
+        "pass": true,
+        "detail": "no margin in use"
+      },
+      {
+        "name": "Lot size within limits",
+        "pass": true,
+        "detail": "0.01"
+      },
+      {
+        "name": "Trade risk <= 1.0% equity",
+        "pass": true,
+        "detail": "risk=1.20 / budget=100.25"
+      },
+      {
+        "name": "Order type valid",
+        "pass": true,
+        "detail": "BUY_LIMIT"
+      },
+      {
+        "name": "Max concurrent positions",
+        "pass": true,
+        "detail": "0/3"
+      },
+      {
+        "name": "One position per pair",
+        "pass": true,
+        "detail": "EURUSD clear"
+      }
+    ],
+    "mock_execution": true
+  },
+  "meta": {
+    "playbook": "playbook/algo_trading_skill.md",
+    "logged_at": "2026-06-11T07:23:08.803053+00:00",
+    "phase": 1,
+    "session": {
+      "session_date": "2026-06-03",
+      "daily_start_balance": 10000.0,
+      "consecutive_losses": 0,
+      "cycles_today": 2,
+      "trades_today": 2,
+      "realized_pnl_today": 0.0,
+      "last_equity": 10025.5,
+      "session_peak_equity": 10025.5,
+      "last_cycle_id": "2026-06-11T07:23:08Z",
+      "lot_multiplier": 1.0
+    },
+    "warm_reasons": {
+      "EURUSD": [
+        "EURUSD: RSI H1 52.0 in long zone [40, 65]",
+        "EURUSD: active regime TRENDING_BULLISH"
+      ],
+      "GBPUSD": [
+        "GBPUSD: RSI H1 50.0 in long zone [40, 65]"
+      ],
+      "USDJPY": [
+        "USDJPY: RSI H1 50.0 in long zone [40, 65]"
+      ]
+    },
+    "veto": {
+      "blocked": false,
+      "emergency_close": false,
+      "suspend": false,
+      "checks": [
+        {
+          "name": "Trading hours Mon-Fri 07:00-21:00 CET",
+          "pass": true,
+          "detail": "Wed 12:00 CEST"
+        },
+        {
+          "name": "Outside London open buffer 07:00-07:15",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "Outside NY close buffer 20:30-21:00",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "Friday before 18:00 CET",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "Spread EURUSD <= 2.0 pips",
+          "pass": true,
+          "detail": "spread=1.60 pips"
+        },
+        {
+          "name": "Spread GBPUSD <= 3.0 pips",
+          "pass": true,
+          "detail": "spread=1.80 pips"
+        },
+        {
+          "name": "Spread USDJPY <= 3.0 pips",
+          "pass": true,
+          "detail": "spread=1.80 pips"
+        },
+        {
+          "name": "Daily drawdown < 1%",
+          "pass": true,
+          "detail": "drawdown=-0.26%"
+        },
+        {
+          "name": "Daily drawdown < 2.0%",
+          "pass": true,
+          "detail": "drawdown=-0.26%"
+        },
+        {
+          "name": "Intraday drawdown < 1.5%",
+          "pass": true,
+          "detail": "peak=10025.50 equity=10025.50 drawdown=0.00%"
+        }
+      ]
+    },
+    "skipped_llm": false,
+    "emergency_close": null,
+    "maintenance": {
+      "cancelled_orders": [],
+      "closed_positions": [],
+      "skipped": [],
+      "ran": true
+    },
+    "exit_signals": null,
+    "exit_override": null,
+    "mock_mode": true,
+    "mock_llm": true,
+    "execution_mode": true,
+    "mock_scenario": "trending_bullish",
+    "regime": {
+      "regime": "TRENDING_BULLISH",
+      "reason": "EMA50 > EMA200 and price > EMA50",
+      "adx": 28.5,
+      "ema50": 1.082,
+      "ema200": 1.078,
+      "price": 1.08412
+    }
+  }
+}
