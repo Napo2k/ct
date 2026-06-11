@@ -2,7 +2,7 @@
   "phase": 1,
   "execution_mode": true,
   "mock_mode": false,
-  "mock_llm": true,
+  "mock_llm": false,
   "pairs": [
     "EURUSD",
     "GBPUSD",
