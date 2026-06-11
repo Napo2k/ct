@@ -1,0 +1,183 @@
+cycle/executor.py
+  s_c36ffa0e2833d6::t_e95bc4bc888470 26-27,33
+  s_c36ffa0e2833d6::t_0b6cb3c2d2015b 95-109
+  s_c36ffa0e2833d6::t_326b35b8831e02 78,83-84
+  s_c36ffa0e2833d6::t_1b9d0151cfdd87 152,157-158,160-163,170-171,185-188,195-196
+cycle/config.py
+  s_c36ffa0e2833d6::t_f4ce5707fca79b 44
+  s_c36ffa0e2833d6::t_125cb924ff067a 160
+  s_c36ffa0e2833d6::t_c0b8b7232b93bd 62-66
+  s_c36ffa0e2833d6::t_e63de1433c216b 16-23,31,50-52
+  s_c36ffa0e2833d6::t_5230b6f6a5035f 53
+  s_c36ffa0e2833d6::t_f63afb913d4764 96-99
+  s_c36ffa0e2833d6::t_fd3b789dea2d5f 128-134,138,157-159,163-240
+  s_c36ffa0e2833d6::t_345df5a8a39d4e 49
+  s_c36ffa0e2833d6::t_8a6ee8a9db5110 156
+  s_c36ffa0e2833d6::t_f7e15eb8efce96 67-80
+  s_c36ffa0e2833d6::t_6ba06cc7327d5f 11-12
+  s_c36ffa0e2833d6::t_508d32dbdf750b 151
+cycle/llm.py
+  s_c36ffa0e2833d6::t_0ad6923de0bf68 199-241,251-255,269-339
+  s_c36ffa0e2833d6::t_41bd86ff2aa10f 16-108
+  s_c36ffa0e2833d6::t_84a4a60f50cf41 130,132-141
+  s_c36ffa0e2833d6::t_d76eb3672965c8 14-15
+  s_c36ffa0e2833d6::t_cae1f4a24238f2 342-368,370,372
+  s_c36ffa0e2833d6::t_4d3d1b941b2af2 153,155-166,173
+tests/test_llm_tools.py
+  s_c36ffa0e2833d6::t_33eed11c972a3e 1-247
+cycle/veto.py
+  s_c36ffa0e2833d6::t_1d00d006891e24 40-43,45-50
+  s_c36ffa0e2833d6::t_c54fe4cc41ced8 81-86,99-117
+backtest/engine.py
+  s_c36ffa0e2833d6::t_4bc108df791d98 1-255
+config/cycle.json
+  s_c36ffa0e2833d6::t_47a7ced8e6af27 6-10,24-26,57-64,86-90,94-102
+  s_c36ffa0e2833d6::t_7e79c3d27e5e63 40-44,73-85,91-93,103,108-109
+  s_c36ffa0e2833d6::t_f7b5047f9fd855 36-37
+tests/test_backtest.py
+  s_c36ffa0e2833d6::t_967ab3f73eb081 134-135
+  s_c36ffa0e2833d6::t_7e3b226e0246fd 1-133,136-227
+scripts/reconcile.py
+  s_c36ffa0e2833d6::t_a27d27ea7fcc6d 1-122
+scripts/dashboard.py
+  s_c36ffa0e2833d6::t_a50ecdf4566f49 1-99
+mt5-mcp-server/server.py
+  s_c36ffa0e2833d6::t_30385bdd0e83d9 15,17
+  s_c36ffa0e2833d6::t_e81a3a9d3a45de 10
+  s_c36ffa0e2833d6::t_7aa61bab67233a 30,33-34
+  s_c36ffa0e2833d6::t_2235f0d25c107b 99,136,149,155,165
+backtest/broker.py
+  s_c36ffa0e2833d6::t_67c5cfecfeadcc 1-371
+README.md
+  s_c36ffa0e2833d6::t_4f530c1b4ba3a9 65-69,71-72,78-88,106-152
+  s_c36ffa0e2833d6::t_392e83669f8f8f 224-225,227
+  s_c36ffa0e2833d6::t_607dd8d8de3ca9 92,95-98
+  s_c36ffa0e2833d6::t_1893a36cc1fbef 242-244,246-250
+  s_c36ffa0e2833d6::t_1a8ad3629d6f73 3,10-12,25-46
+  s_c36ffa0e2833d6::t_75c971efc22067 89-91,93-94,99-105
+tests/test_ops_tools.py
+  s_c36ffa0e2833d6::t_75172541532489 1-62
+scripts/fetch_oanda_history.py
+  s_c36ffa0e2833d6::t_6ef996141889af 36
+  s_c36ffa0e2833d6::t_8ee563e48fb95a 180,183-185
+  s_c36ffa0e2833d6::t_b9a684f3661dc8 170-171
+  s_c36ffa0e2833d6::t_7abee8e7f7718d 176
+  s_c36ffa0e2833d6::t_f44db06e37fe9c 205
+  s_c36ffa0e2833d6::t_c202ba7b75e36e 1-35,37-169,172-175,177-179,181-182,186-204,206-225
+scripts/review_trades.py
+  s_c36ffa0e2833d6::t_c51de47d51ff80 1-88
+cycle/store.py
+  s_c36ffa0e2833d6::t_ae0d5bd85ee9cf 1-179
+cycle/alerts.py
+  s_c36ffa0e2833d6::t_e88b9e405e93b0 1-148
+.gitignore
+  s_c36ffa0e2833d6::t_dec18d332763f9 16
+  s_c36ffa0e2833d6::t_c6d14c2b833139 18
+  s_c36ffa0e2833d6::t_afdb7b3f313904 13-14
+  s_c36ffa0e2833d6::t_b908a92c5f4e04 17
+  s_c36ffa0e2833d6::t_6dab7acb14245c 15
+tests/test_manage.py
+  s_c36ffa0e2833d6::t_377f2083961ad9 1-143
+tests/test_oanda_fetch.py
+  s_c36ffa0e2833d6::t_8c4480aa719e63 1-121
+cycle/postmortem.py
+  s_c36ffa0e2833d6::t_183d32a13b6589 1-297
+playbook/algo_trading_skill.md
+  s_c36ffa0e2833d6::t_052745da193227 3-4
+  s_c36ffa0e2833d6::t_5cb0f4c08a2c35 54-62
+config/cycle.example.json
+  s_c36ffa0e2833d6::t_7e79c3d27e5e63 41-45,74-86,92-94,104,109-110
+  s_c36ffa0e2833d6::t_47a7ced8e6af27 6-11,25-27,58-65,87-91,95-103
+  s_c36ffa0e2833d6::t_f7b5047f9fd855 37-38
+scripts/price_watcher.py
+  s_c36ffa0e2833d6::t_b8212542da9a7a 91
+  s_c36ffa0e2833d6::t_7f89db95504b15 1-90,92-127
+mt5-mcp-server/mt5client.py
+  s_c36ffa0e2833d6::t_858d3ab02e1f2d 185-212
+backtest/data.py
+  s_c36ffa0e2833d6::t_5da3249659a264 1-115
+scripts/run_backtest.py
+  s_c36ffa0e2833d6::t_26f1ab14f4b3c8 1-120
+cycle/session_state.py
+  s_c36ffa0e2833d6::t_e2fd0853770905 75-87
+  s_c36ffa0e2833d6::t_ab4ba7967dc3be 143,150-151
+  s_c36ffa0e2833d6::t_145d939b3e4942 7-8
+  s_c36ffa0e2833d6::t_35b0154d592372 27-28,44-45
+backtest/__init__.py
+  s_c36ffa0e2833d6::t_0a858e24132bfe 1
+cycle/gitea_logger.py
+  s_c36ffa0e2833d6::t_e0d078ecda1b8a 93-94,96
+cycle/runner.py
+  s_c36ffa0e2833d6::t_d95b27ed121f1d 398-424
+  s_c36ffa0e2833d6::t_9dd224ecde3acb 452-453
+  s_c36ffa0e2833d6::t_49f74f8c4a0cf4 48
+  s_c36ffa0e2833d6::t_ea556e6afd385a 495-498
+  s_c36ffa0e2833d6::t_ede80b64d2f264 47
+  s_c36ffa0e2833d6::t_b88f2b0f1942bf 67-70,80,117-120,126-139
+  s_c36ffa0e2833d6::t_b45fac8be19cca 348
+  s_c36ffa0e2833d6::t_acd60c73a0ac94 162-185
+  s_c36ffa0e2833d6::t_8b7038dd16acb9 363-364
+  s_c36ffa0e2833d6::t_ab461b0d6a72a3 368-372
+  s_c36ffa0e2833d6::t_0c06ee482bc7e3 225-237,249-252
+  s_c36ffa0e2833d6::t_df88171311804e 121-125
+  s_c36ffa0e2833d6::t_14470781170013 33
+  s_c36ffa0e2833d6::t_91491b82d0b057 9,18-22
+  s_c36ffa0e2833d6::t_3dbabccb753e2c 289-290
+  s_c36ffa0e2833d6::t_cedfa62825cf17 358
+  s_c36ffa0e2833d6::t_be4020afb01114 213-224
+  s_c36ffa0e2833d6::t_c1a4a25947f640 387-397
+tests/test_phase2.py
+  s_c36ffa0e2833d6::t_00072f23447ad2 466-534
+  s_c36ffa0e2833d6::t_3315dca36f7984 1-385
+  s_c36ffa0e2833d6::t_4bca47dd5e3d4d 386-465
+cycle/safety.py
+  s_c36ffa0e2833d6::t_43fe98a58f03f2 1-129
+backtest/metrics.py
+  s_c36ffa0e2833d6::t_2d02efbefe270b 1-63
+cycle/env.py
+  s_c36ffa0e2833d6::t_5b90eca4e2ee25 1-64
+cycle/manage.py
+  s_c36ffa0e2833d6::t_7542b9404eca90 1-214
+tests/test_env.py
+  s_c36ffa0e2833d6::t_c6d14c2b833139 1-56
+.env.example
+  s_c36ffa0e2833d6::t_9dda436b5aa1d0 1-19
+mt5-mcp-server/config.json
+  s_c36ffa0e2833d6::t_b927bff5a3de4a 8-9
+cycle/risk.py
+  s_c36ffa0e2833d6::t_423176501a8c98 1,10-13
+  s_c36ffa0e2833d6::t_02d78851d900af 144-145,261-297
+  s_c36ffa0e2833d6::t_533a2fd6a08c40 146-260
+  s_c36ffa0e2833d6::t_3d50ada47f8d8f 49-50,54
+  s_c36ffa0e2833d6::t_dc6f0cb1610b87 91-119
+  s_c36ffa0e2833d6::t_d3fdad1fedcd9c 15-26
+  s_c36ffa0e2833d6::t_4c68c667b6366b 136-138
+cycle/verifier.py
+  s_c36ffa0e2833d6::t_037beeaf181fc5 1-110
+tests/test_store.py
+  s_c36ffa0e2833d6::t_dec18d332763f9 1-61
+tests/test_postmortem.py
+  s_c36ffa0e2833d6::t_7d0064938987a6 1-131
+scripts/http_trigger.py
+  s_c36ffa0e2833d6::t_b1b935ebe8bff6 19
+  s_c36ffa0e2833d6::t_ede268d5e96c29 52-58,70-83
+  s_c36ffa0e2833d6::t_99b6856a1d1186 102,106,109,111-115,118-119
+  s_c36ffa0e2833d6::t_a5d0aed90f36d2 141-144
+  s_c36ffa0e2833d6::t_7e7ac449be1f92 34-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1cf657af1cf72fb5131d11e1fadb022f28c8f6ba",
+  "prompts": {},
+  "sessions": {
+    "s_c36ffa0e2833d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be0fd378-4a75-4452-add2-3feba6e96844",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Nacho Fernandez <ignacio.fernandez@lovable.dev>"
+    }
+  }
+}
